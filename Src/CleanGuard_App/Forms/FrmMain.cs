@@ -11,6 +11,7 @@ namespace CleanGuard_App.Forms
         private readonly TextBox _txtSearch = new TextBox();
         private readonly Button _btnSearch = new Button();
         private readonly Button _btnAdd = new Button();
+        private readonly Button _btnEdit = new Button();
         private readonly Button _btnResign = new Button();
         private readonly Button _btnPrintLabel = new Button();
         private readonly Button _btnLockerMap = new Button();
@@ -44,28 +45,33 @@ namespace CleanGuard_App.Forms
             _btnAdd.Click += (s, e) => OpenEditor();
             Controls.Add(_btnAdd);
 
+            _btnEdit.Text = "编辑员工";
+            _btnEdit.SetBounds(410, 20, 90, 30);
+            _btnEdit.Click += (s, e) => OpenEditorForSelected();
+            Controls.Add(_btnEdit);
+
             _btnResign.Text = "办理离职";
-            _btnResign.SetBounds(410, 20, 90, 30);
+            _btnResign.SetBounds(510, 20, 90, 30);
             _btnResign.Click += (s, e) => ResignSelectedEmployee();
             Controls.Add(_btnResign);
 
             _btnPrintLabel.Text = "打印标签";
-            _btnPrintLabel.SetBounds(510, 20, 90, 30);
+            _btnPrintLabel.SetBounds(610, 20, 90, 30);
             _btnPrintLabel.Click += (s, e) => PrintSelectedEmployeeLabel();
             Controls.Add(_btnPrintLabel);
 
             _btnImport.Text = "数据导入";
-            _btnImport.SetBounds(610, 20, 100, 30);
+            _btnImport.SetBounds(710, 20, 100, 30);
             _btnImport.Click += (s, e) => OpenImportForm();
             Controls.Add(_btnImport);
 
             _btnLockerMap.Text = "柜位分布图";
-            _btnLockerMap.SetBounds(720, 20, 120, 30);
+            _btnLockerMap.SetBounds(820, 20, 120, 30);
             _btnLockerMap.Click += (s, e) => OpenLockerChart();
             Controls.Add(_btnLockerMap);
 
             _btnLogs.Text = "系统日志";
-            _btnLogs.SetBounds(850, 20, 90, 30);
+            _btnLogs.SetBounds(950, 20, 90, 30);
             _btnLogs.Click += (s, e) => OpenSystemLogs();
             Controls.Add(_btnLogs);
 
@@ -75,6 +81,7 @@ namespace CleanGuard_App.Forms
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             _grid.MultiSelect = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            _grid.CellDoubleClick += (s, e) => OpenEditorForSelected();
             Controls.Add(_grid);
         }
 
@@ -93,6 +100,30 @@ namespace CleanGuard_App.Forms
         private void OpenEditor()
         {
             using (var editor = new FrmEditor())
+            {
+                if (editor.ShowDialog(this) == DialogResult.OK)
+                {
+                    LoadEmployeeData(_txtSearch.Text.Trim());
+                }
+            }
+        }
+
+        private void OpenEditorForSelected()
+        {
+            if (_grid.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string empNo = Convert.ToString(_grid.SelectedRows[0].Cells["工号"].Value);
+            if (string.IsNullOrWhiteSpace(empNo))
+            {
+                MessageBox.Show("无法识别当前行工号。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            using (var editor = new FrmEditor(empNo))
             {
                 if (editor.ShowDialog(this) == DialogResult.OK)
                 {

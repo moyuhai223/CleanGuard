@@ -15,15 +15,18 @@ namespace CleanGuard_App.Forms
         private readonly ComboBox _cmb2FShoe = new ComboBox();
         private readonly Button _btnSave = new Button();
 
-        public FrmEditor()
+        private readonly string _editingEmpNo;
+
+        public FrmEditor(string editingEmpNo = null)
         {
-            Text = "员工录入与编辑";
+            _editingEmpNo = editingEmpNo;
+            Text = string.IsNullOrWhiteSpace(_editingEmpNo) ? "员工录入" : "员工编辑";
             Width = 900;
             Height = 650;
             StartPosition = FormStartPosition.CenterParent;
 
             InitializeLayout();
-            LoadLockerOptions();
+            LoadData();
         }
 
         private void InitializeLayout()
@@ -81,26 +84,68 @@ namespace CleanGuard_App.Forms
             Controls.Add(_btnSave);
         }
 
-        private void LoadLockerOptions()
+        private void LoadData()
         {
-            BindLockerCombo(_cmb1FClothes, "1F", "衣柜");
-            BindLockerCombo(_cmb1FShoe, "1F", "鞋柜");
-            BindLockerCombo(_cmb2FClothes, "2F", "衣柜");
-            BindLockerCombo(_cmb2FShoe, "2F", "鞋柜");
+            if (string.IsNullOrWhiteSpace(_editingEmpNo))
+            {
+                LoadLockerOptions(null);
+                return;
+            }
+
+            var model = SQLiteHelper.GetEmployeeEditModel(_editingEmpNo);
+            if (model == null)
+            {
+                MessageBox.Show("未找到员工信息。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Close();
+                return;
+            }
+
+            _txtEmpNo.Text = model.EmpNo;
+            _txtEmpNo.ReadOnly = true;
+            _txtName.Text = model.Name;
+            _cmbProcess.Text = model.Process;
+
+            LoadLockerOptions(model);
+            SetComboValue(_cmb1FClothes, model.Locker1FClothes);
+            SetComboValue(_cmb1FShoe, model.Locker1FShoe);
+            SetComboValue(_cmb2FClothes, model.Locker2FClothes);
+            SetComboValue(_cmb2FShoe, model.Locker2FShoe);
+        }
+
+        private void LoadLockerOptions(EmployeeEditModel model)
+        {
+            BindLockerCombo(_cmb1FClothes, "1F", "衣柜", model != null ? model.Locker1FClothes : null);
+            BindLockerCombo(_cmb1FShoe, "1F", "鞋柜", model != null ? model.Locker1FShoe : null);
+            BindLockerCombo(_cmb2FClothes, "2F", "衣柜", model != null ? model.Locker2FClothes : null);
+            BindLockerCombo(_cmb2FShoe, "2F", "鞋柜", model != null ? model.Locker2FShoe : null);
         }
 
         private void SaveEmployee()
         {
             try
             {
-                SQLiteHelper.AddEmployee(
-                    _txtEmpNo.Text,
-                    _txtName.Text,
-                    _cmbProcess.Text,
-                    _cmb1FClothes.Text,
-                    _cmb1FShoe.Text,
-                    _cmb2FClothes.Text,
-                    _cmb2FShoe.Text);
+                if (string.IsNullOrWhiteSpace(_editingEmpNo))
+                {
+                    SQLiteHelper.AddEmployee(
+                        _txtEmpNo.Text,
+                        _txtName.Text,
+                        _cmbProcess.Text,
+                        _cmb1FClothes.Text,
+                        _cmb1FShoe.Text,
+                        _cmb2FClothes.Text,
+                        _cmb2FShoe.Text);
+                }
+                else
+                {
+                    SQLiteHelper.UpdateEmployee(
+                        _txtEmpNo.Text,
+                        _txtName.Text,
+                        _cmbProcess.Text,
+                        _cmb1FClothes.Text,
+                        _cmb1FShoe.Text,
+                        _cmb2FClothes.Text,
+                        _cmb2FShoe.Text);
+                }
 
                 MessageBox.Show("保存成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 DialogResult = DialogResult.OK;
@@ -112,12 +157,17 @@ namespace CleanGuard_App.Forms
             }
         }
 
-        private static void BindLockerCombo(ComboBox comboBox, string location, string type)
+        private static void BindLockerCombo(ComboBox comboBox, string location, string type, string selectedLocker)
         {
             comboBox.Items.Clear();
             comboBox.Items.Add(string.Empty);
-            comboBox.Items.AddRange(SQLiteHelper.GetAvailableLockers(location, type));
+            comboBox.Items.AddRange(SQLiteHelper.GetAvailableLockersIncluding(location, type, selectedLocker));
             comboBox.SelectedIndex = 0;
+        }
+
+        private static void SetComboValue(ComboBox comboBox, string value)
+        {
+            comboBox.Text = string.IsNullOrWhiteSpace(value) ? string.Empty : value;
         }
     }
 }

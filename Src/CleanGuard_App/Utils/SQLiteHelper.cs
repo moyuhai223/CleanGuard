@@ -139,6 +139,19 @@ ORDER BY LockerID";
             return list.ToArray();
         }
 
+        public static string[] GetAvailableLockersIncluding(string location, string type, string selectedLockerId)
+        {
+            var list = new List<string>(GetAvailableLockers(location, type));
+            if (!string.IsNullOrWhiteSpace(selectedLockerId) && !list.Contains(selectedLockerId))
+            {
+                list.Add(selectedLockerId);
+                list.Sort(StringComparer.OrdinalIgnoreCase);
+            }
+
+            return list.ToArray();
+        }
+
+
         public static LockerSummary GetLockerSummary()
         {
             var summary = new LockerSummary();
@@ -233,6 +246,102 @@ VALUES (@EmpNo, @Name, @Pinyin, @Process, @L1C, @L1S, @L2C, @L2S, 1);";
             }
 
             WriteSystemLog("Employee", $"新增员工成功: {empNo}-{name}");
+        }
+
+        public static EmployeeEditModel GetEmployeeEditModel(string empNo)
+        {
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = @"SELECT EmpNo, Name, Process, Locker_1F_Clothes, Locker_1F_Shoe, Locker_2F_Clothes, Locker_2F_Shoe, Status
+FROM T_Employee WHERE EmpNo = @EmpNo";
+                cmd.Parameters.AddWithValue("@EmpNo", empNo);
+                using (var reader = cmd.ExecuteReader())
+                {
+                    if (!reader.Read())
+                    {
+                        return null;
+                    }
+
+                    return new EmployeeEditModel
+                    {
+                        EmpNo = reader["EmpNo"].ToString(),
+                        Name = reader["Name"].ToString(),
+                        Process = reader["Process"].ToString(),
+                        Locker1FClothes = reader["Locker_1F_Clothes"].ToString(),
+                        Locker1FShoe = reader["Locker_1F_Shoe"].ToString(),
+                        Locker2FClothes = reader["Locker_2F_Clothes"].ToString(),
+                        Locker2FShoe = reader["Locker_2F_Shoe"].ToString(),
+                        Status = Convert.ToInt32(reader["Status"])
+                    };
+                }
+            }
+        }
+
+        public static void UpdateEmployee(
+            string empNo,
+            string name,
+            string process,
+            string locker1FClothes,
+            string locker1FShoe,
+            string locker2FClothes,
+            string locker2FShoe)
+        {
+            var oldData = GetEmployeeEditModel(empNo);
+            if (oldData == null)
+            {
+                throw new InvalidOperationException("未找到该员工，无法更新。");
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var tx = conn.BeginTransaction())
+                {
+                    MarkLockerOccupied(conn, tx, oldData.Locker1FClothes, 0);
+                    MarkLockerOccupied(conn, tx, oldData.Locker1FShoe, 0);
+                    MarkLockerOccupied(conn, tx, oldData.Locker2FClothes, 0);
+                    MarkLockerOccupied(conn, tx, oldData.Locker2FShoe, 0);
+
+                    EnsureLockerValid(conn, tx, locker1FClothes, "1F", "衣柜", "1F衣柜");
+                    EnsureLockerValid(conn, tx, locker1FShoe, "1F", "鞋柜", "1F鞋柜");
+                    EnsureLockerValid(conn, tx, locker2FClothes, "2F", "衣柜", "2F衣柜");
+                    EnsureLockerValid(conn, tx, locker2FShoe, "2F", "鞋柜", "2F鞋柜");
+
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.Transaction = tx;
+                        cmd.CommandText = @"UPDATE T_Employee
+SET Name = @Name,
+    Pinyin = @Pinyin,
+    Process = @Process,
+    Locker_1F_Clothes = @L1C,
+    Locker_1F_Shoe = @L1S,
+    Locker_2F_Clothes = @L2C,
+    Locker_2F_Shoe = @L2S
+WHERE EmpNo = @EmpNo";
+                        cmd.Parameters.AddWithValue("@EmpNo", empNo.Trim());
+                        cmd.Parameters.AddWithValue("@Name", name.Trim());
+                        cmd.Parameters.AddWithValue("@Pinyin", PinYin.GetFirstLetter(name));
+                        cmd.Parameters.AddWithValue("@Process", NormalizeNull(process));
+                        cmd.Parameters.AddWithValue("@L1C", NormalizeNull(locker1FClothes));
+                        cmd.Parameters.AddWithValue("@L1S", NormalizeNull(locker1FShoe));
+                        cmd.Parameters.AddWithValue("@L2C", NormalizeNull(locker2FClothes));
+                        cmd.Parameters.AddWithValue("@L2S", NormalizeNull(locker2FShoe));
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    MarkLockerOccupied(conn, tx, locker1FClothes, 1);
+                    MarkLockerOccupied(conn, tx, locker1FShoe, 1);
+                    MarkLockerOccupied(conn, tx, locker2FClothes, 1);
+                    MarkLockerOccupied(conn, tx, locker2FShoe, 1);
+
+                    tx.Commit();
+                }
+            }
+
+            WriteSystemLog("Employee", $"更新员工成功: {empNo}-{name}");
         }
 
         public static EmployeeLockerInfo GetEmployeeLockerInfo(string empNo)
@@ -443,6 +552,18 @@ VALUES (@LockerID, @Location, @Type, 0)";
                 cmd.ExecuteNonQuery();
             }
         }
+    }
+
+    public class EmployeeEditModel
+    {
+        public string EmpNo { get; set; }
+        public string Name { get; set; }
+        public string Process { get; set; }
+        public string Locker1FClothes { get; set; }
+        public string Locker1FShoe { get; set; }
+        public string Locker2FClothes { get; set; }
+        public string Locker2FShoe { get; set; }
+        public int Status { get; set; }
     }
 
     public class EmployeeLockerInfo
