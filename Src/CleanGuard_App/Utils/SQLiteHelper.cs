@@ -63,9 +63,24 @@ CREATE TABLE IF NOT EXISTS T_SystemLog (
     Message TEXT,
     LogTime DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS T_LockerSnapshot (
+    SnapshotID INTEGER PRIMARY KEY AUTOINCREMENT,
+    SnapshotTime DATETIME DEFAULT CURRENT_TIMESTAMP,
+    OneFClothesOccupied INTEGER,
+    OneFClothesTotal INTEGER,
+    OneFShoeOccupied INTEGER,
+    OneFShoeTotal INTEGER,
+    TwoFClothesOccupied INTEGER,
+    TwoFClothesTotal INTEGER,
+    TwoFShoeOccupied INTEGER,
+    TwoFShoeTotal INTEGER,
+    Source TEXT
+);
 ");
 
             SeedDefaultLockers();
+            CaptureLockerSnapshot("Startup");
         }
 
         public static DataTable QueryEmployees(string keyword)
@@ -246,6 +261,7 @@ VALUES (@EmpNo, @Name, @Pinyin, @Process, @L1C, @L1S, @L2C, @L2S, 1);";
             }
 
             WriteSystemLog("Employee", $"新增员工成功: {empNo}-{name}");
+            CaptureLockerSnapshot("AddEmployee");
         }
 
         public static EmployeeEditModel GetEmployeeEditModel(string empNo)
@@ -342,6 +358,7 @@ WHERE EmpNo = @EmpNo";
             }
 
             WriteSystemLog("Employee", $"更新员工成功: {empNo}-{name}");
+            CaptureLockerSnapshot("UpdateEmployee");
         }
 
         public static EmployeeLockerInfo GetEmployeeLockerInfo(string empNo)
@@ -416,6 +433,7 @@ WHERE EmpNo = @EmpNo";
             }
 
             WriteSystemLog("Employee", $"员工离职并释放柜位: {info.EmpNo}-{info.Name}");
+            CaptureLockerSnapshot("Resign");
         }
 
         public static void RestoreEmployee(string empNo)
@@ -441,6 +459,51 @@ WHERE EmpNo = @EmpNo";
             }
 
             WriteSystemLog("Employee", $"员工复职: {info.EmpNo}-{info.Name}");
+            CaptureLockerSnapshot("Restore");
+        }
+
+        public static void CaptureLockerSnapshot(string source)
+        {
+            var summary = GetLockerSummary();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = @"INSERT INTO T_LockerSnapshot
+(SnapshotTime, OneFClothesOccupied, OneFClothesTotal, OneFShoeOccupied, OneFShoeTotal,
+ TwoFClothesOccupied, TwoFClothesTotal, TwoFShoeOccupied, TwoFShoeTotal, Source)
+VALUES (CURRENT_TIMESTAMP, @OneFCO, @OneFCT, @OneFSO, @OneFST, @TwoFCO, @TwoFCT, @TwoFSO, @TwoFST, @Source)";
+                cmd.Parameters.AddWithValue("@OneFCO", summary.OneFClothesOccupied);
+                cmd.Parameters.AddWithValue("@OneFCT", summary.OneFClothesTotal);
+                cmd.Parameters.AddWithValue("@OneFSO", summary.OneFShoeOccupied);
+                cmd.Parameters.AddWithValue("@OneFST", summary.OneFShoeTotal);
+                cmd.Parameters.AddWithValue("@TwoFCO", summary.TwoFClothesOccupied);
+                cmd.Parameters.AddWithValue("@TwoFCT", summary.TwoFClothesTotal);
+                cmd.Parameters.AddWithValue("@TwoFSO", summary.TwoFShoeOccupied);
+                cmd.Parameters.AddWithValue("@TwoFST", summary.TwoFShoeTotal);
+                cmd.Parameters.AddWithValue("@Source", source ?? string.Empty);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public static DataTable QueryLockerSnapshots(int limit)
+        {
+            var table = new DataTable();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            using (var adapter = new SQLiteDataAdapter(cmd))
+            {
+                conn.Open();
+                cmd.CommandText = @"SELECT SnapshotTime, OneFClothesOccupied, OneFShoeOccupied,
+       TwoFClothesOccupied, TwoFShoeOccupied, Source
+FROM T_LockerSnapshot
+ORDER BY SnapshotTime DESC
+LIMIT @limit";
+                cmd.Parameters.AddWithValue("@limit", limit <= 0 ? 100 : limit);
+                adapter.Fill(table);
+            }
+
+            return table;
         }
 
         public static DataTable QuerySystemLogs(string logType, int limit)

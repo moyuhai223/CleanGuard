@@ -43,6 +43,20 @@ CREATE TABLE IF NOT EXISTS T_SystemLog (
     LogTime DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS T_LockerSnapshot (
+    SnapshotID INTEGER PRIMARY KEY AUTOINCREMENT,
+    SnapshotTime DATETIME DEFAULT CURRENT_TIMESTAMP,
+    OneFClothesOccupied INTEGER,
+    OneFClothesTotal INTEGER,
+    OneFShoeOccupied INTEGER,
+    OneFShoeTotal INTEGER,
+    TwoFClothesOccupied INTEGER,
+    TwoFClothesTotal INTEGER,
+    TwoFShoeOccupied INTEGER,
+    TwoFShoeTotal INTEGER,
+    Source TEXT
+);
+
 -- 默认柜位初始化（每层 60 衣柜 + 60 鞋柜）
 WITH RECURSIVE seq(x) AS (
     SELECT 1

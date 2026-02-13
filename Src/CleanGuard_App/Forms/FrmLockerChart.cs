@@ -14,6 +14,7 @@ namespace CleanGuard_App.Forms
         private readonly ComboBox _cmbFloor = new ComboBox();
         private readonly Button _btnRefresh = new Button();
         private readonly Button _btnExportImage = new Button();
+        private readonly Button _btnTrend = new Button();
 
         public FrmLockerChart()
         {
@@ -43,6 +44,11 @@ namespace CleanGuard_App.Forms
             _btnExportImage.SetBounds(220, 15, 100, 28);
             _btnExportImage.Click += (s, e) => ExportChartImage();
             Controls.Add(_btnExportImage);
+
+            _btnTrend.Text = "占用趋势";
+            _btnTrend.SetBounds(330, 15, 100, 28);
+            _btnTrend.Click += (s, e) => OpenTrend();
+            Controls.Add(_btnTrend);
 
             _chart.SetBounds(20, 55, 840, 420);
             _chart.ChartAreas.Add(new ChartArea("MainArea"));
@@ -123,6 +129,14 @@ namespace CleanGuard_App.Forms
         {
             decimal rate = total == 0 ? 0 : Math.Round(occupied * 100m / total, 1);
             return string.Format("{0}: {1}/{2}（占用率 {3}%）\n", name, occupied, total, rate);
+        }
+
+        private void OpenTrend()
+        {
+            using (var form = new FrmLockerTrend())
+            {
+                form.ShowDialog(this);
+            }
         }
 
         private void ExportChartImage()
