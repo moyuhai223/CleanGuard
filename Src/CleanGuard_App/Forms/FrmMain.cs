@@ -1,6 +1,7 @@
 using System;
 using System.Data;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using CleanGuard_App.Utils;
 
@@ -13,13 +14,15 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnAdd = new Button();
         private readonly Button _btnResign = new Button();
         private readonly Button _btnLockerMap = new Button();
+        private readonly Button _btnDownloadTemplate = new Button();
+        private readonly Button _btnImportCsv = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
         public FrmMain()
         {
             Text = "CleanGuard 劳保与更衣柜管理系统";
-            Width = 1200;
-            Height = 700;
+            Width = 1280;
+            Height = 720;
             StartPosition = FormStartPosition.CenterScreen;
 
             InitializeLayout();
@@ -28,30 +31,40 @@ namespace CleanGuard_App.Forms
 
         private void InitializeLayout()
         {
-            _txtSearch.SetBounds(20, 20, 250, 30);
+            _txtSearch.SetBounds(20, 20, 220, 30);
             Controls.Add(_txtSearch);
 
             _btnSearch.Text = "搜索";
-            _btnSearch.SetBounds(280, 20, 80, 30);
+            _btnSearch.SetBounds(250, 20, 70, 30);
             _btnSearch.Click += (s, e) => LoadEmployeeData(_txtSearch.Text.Trim());
             Controls.Add(_btnSearch);
 
             _btnAdd.Text = "新增员工";
-            _btnAdd.SetBounds(370, 20, 100, 30);
+            _btnAdd.SetBounds(330, 20, 95, 30);
             _btnAdd.Click += (s, e) => OpenEditor();
             Controls.Add(_btnAdd);
 
             _btnResign.Text = "办理离职";
-            _btnResign.SetBounds(480, 20, 100, 30);
+            _btnResign.SetBounds(435, 20, 95, 30);
             _btnResign.Click += (s, e) => ResignSelectedEmployee();
             Controls.Add(_btnResign);
 
+            _btnDownloadTemplate.Text = "下载导入模板";
+            _btnDownloadTemplate.SetBounds(540, 20, 110, 30);
+            _btnDownloadTemplate.Click += (s, e) => DownloadImportTemplate();
+            Controls.Add(_btnDownloadTemplate);
+
+            _btnImportCsv.Text = "导入数据";
+            _btnImportCsv.SetBounds(660, 20, 90, 30);
+            _btnImportCsv.Click += (s, e) => ImportFromCsv();
+            Controls.Add(_btnImportCsv);
+
             _btnLockerMap.Text = "柜位分布图";
-            _btnLockerMap.SetBounds(590, 20, 120, 30);
+            _btnLockerMap.SetBounds(760, 20, 120, 30);
             _btnLockerMap.Click += (s, e) => ShowLockerHeatmapPlaceholder();
             Controls.Add(_btnLockerMap);
 
-            _grid.SetBounds(20, 70, 1140, 560);
+            _grid.SetBounds(20, 70, 1220, 590);
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -80,6 +93,46 @@ namespace CleanGuard_App.Forms
                 {
                     LoadEmployeeData(_txtSearch.Text.Trim());
                 }
+            }
+        }
+
+        private void DownloadImportTemplate()
+        {
+            using (var dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "CSV 文件|*.csv";
+                dialog.FileName = "CleanGuard_导入模板.csv";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                ImportHelper.ExportTemplateCsv(dialog.FileName);
+                MessageBox.Show("模板下载成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void ImportFromCsv()
+        {
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "CSV 文件|*.csv";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                var result = ImportHelper.ImportFromCsv(dialog.FileName);
+                LoadEmployeeData(_txtSearch.Text.Trim());
+
+                string msg = $"导入完成。\n成功: {result.SuccessCount}\n失败: {result.FailedCount}";
+                if (result.Errors.Any())
+                {
+                    msg += "\n\n失败明细（最多显示前5条）：\n" + string.Join("\n", result.Errors.Take(5));
+                }
+
+                MessageBox.Show(msg, "导入结果", MessageBoxButtons.OK,
+                    result.FailedCount == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
             }
         }
 

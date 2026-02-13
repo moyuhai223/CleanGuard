@@ -46,6 +46,7 @@
     <Compile Include="Forms\FrmEditor.cs" />
     <Compile Include="Utils\SQLiteHelper.cs" />
     <Compile Include="Utils\PinYin.cs" />
+    <Compile Include="Utils\ImportHelper.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
