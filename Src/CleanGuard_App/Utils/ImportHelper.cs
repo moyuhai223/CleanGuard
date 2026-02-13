@@ -22,7 +22,12 @@ namespace CleanGuard_App.Utils
 
         public static ImportResult ImportFromCsv(string filePath)
         {
-            var result = new ImportResult();
+            var result = new ImportResult
+            {
+                SourceFile = filePath,
+                ImportTime = DateTime.Now
+            };
+
             if (!File.Exists(filePath))
             {
                 result.Errors.Add("导入文件不存在。");
@@ -72,7 +77,7 @@ namespace CleanGuard_App.Utils
                 }
             }
 
-            SQLiteHelper.WriteSystemLog("Import", $"CSV导入完成：成功 {result.SuccessCount}，失败 {result.FailedCount}");
+            SQLiteHelper.WriteSystemLog("Import", $"CSV导入完成：文件={Path.GetFileName(filePath)}，成功 {result.SuccessCount}，失败 {result.FailedCount}");
             return result;
         }
 
@@ -117,6 +122,28 @@ namespace CleanGuard_App.Utils
     {
         public int SuccessCount { get; set; }
         public int FailedCount { get; set; }
+        public string SourceFile { get; set; }
+        public DateTime ImportTime { get; set; }
         public List<string> Errors { get; } = new List<string>();
+
+        public void ExportErrorsCsv(string filePath)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("序号,错误信息");
+            for (int i = 0; i < Errors.Count; i++)
+            {
+                sb.Append(i + 1);
+                sb.Append(",\"");
+                sb.Append(Escape(Errors[i]));
+                sb.AppendLine("\"");
+            }
+
+            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+        }
+
+        private static string Escape(string text)
+        {
+            return (text ?? string.Empty).Replace("\"", "\"\"");
+        }
     }
 }

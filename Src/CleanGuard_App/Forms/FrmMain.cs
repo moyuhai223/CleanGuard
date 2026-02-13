@@ -1,7 +1,6 @@
 using System;
 using System.Data;
 using System.Drawing;
-using System.Linq;
 using System.Windows.Forms;
 using CleanGuard_App.Utils;
 
@@ -14,8 +13,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnAdd = new Button();
         private readonly Button _btnResign = new Button();
         private readonly Button _btnLockerMap = new Button();
-        private readonly Button _btnDownloadTemplate = new Button();
-        private readonly Button _btnImportCsv = new Button();
+        private readonly Button _btnImport = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
         public FrmMain()
@@ -49,18 +47,13 @@ namespace CleanGuard_App.Forms
             _btnResign.Click += (s, e) => ResignSelectedEmployee();
             Controls.Add(_btnResign);
 
-            _btnDownloadTemplate.Text = "下载导入模板";
-            _btnDownloadTemplate.SetBounds(540, 20, 110, 30);
-            _btnDownloadTemplate.Click += (s, e) => DownloadImportTemplate();
-            Controls.Add(_btnDownloadTemplate);
-
-            _btnImportCsv.Text = "导入数据";
-            _btnImportCsv.SetBounds(660, 20, 90, 30);
-            _btnImportCsv.Click += (s, e) => ImportFromCsv();
-            Controls.Add(_btnImportCsv);
+            _btnImport.Text = "数据导入";
+            _btnImport.SetBounds(540, 20, 110, 30);
+            _btnImport.Click += (s, e) => OpenImportForm();
+            Controls.Add(_btnImport);
 
             _btnLockerMap.Text = "柜位分布图";
-            _btnLockerMap.SetBounds(760, 20, 120, 30);
+            _btnLockerMap.SetBounds(660, 20, 120, 30);
             _btnLockerMap.Click += (s, e) => ShowLockerHeatmapPlaceholder();
             Controls.Add(_btnLockerMap);
 
@@ -96,43 +89,14 @@ namespace CleanGuard_App.Forms
             }
         }
 
-        private void DownloadImportTemplate()
+        private void OpenImportForm()
         {
-            using (var dialog = new SaveFileDialog())
+            using (var form = new FrmImport())
             {
-                dialog.Filter = "CSV 文件|*.csv";
-                dialog.FileName = "CleanGuard_导入模板.csv";
-                if (dialog.ShowDialog(this) != DialogResult.OK)
+                if (form.ShowDialog(this) == DialogResult.OK)
                 {
-                    return;
+                    LoadEmployeeData(_txtSearch.Text.Trim());
                 }
-
-                ImportHelper.ExportTemplateCsv(dialog.FileName);
-                MessageBox.Show("模板下载成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-        }
-
-        private void ImportFromCsv()
-        {
-            using (var dialog = new OpenFileDialog())
-            {
-                dialog.Filter = "CSV 文件|*.csv";
-                if (dialog.ShowDialog(this) != DialogResult.OK)
-                {
-                    return;
-                }
-
-                var result = ImportHelper.ImportFromCsv(dialog.FileName);
-                LoadEmployeeData(_txtSearch.Text.Trim());
-
-                string msg = $"导入完成。\n成功: {result.SuccessCount}\n失败: {result.FailedCount}";
-                if (result.Errors.Any())
-                {
-                    msg += "\n\n失败明细（最多显示前5条）：\n" + string.Join("\n", result.Errors.Take(5));
-                }
-
-                MessageBox.Show(msg, "导入结果", MessageBoxButtons.OK,
-                    result.FailedCount == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
             }
         }
 

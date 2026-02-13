@@ -303,6 +303,27 @@ FROM T_Employee WHERE EmpNo = @EmpNo";
             WriteSystemLog("Employee", $"员工离职并释放柜位: {info.EmpNo}-{info.Name}");
         }
 
+        public static DataTable QuerySystemLogs(string logType, int limit)
+        {
+            var table = new DataTable();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            using (var adapter = new SQLiteDataAdapter(cmd))
+            {
+                conn.Open();
+                cmd.CommandText = @"SELECT LogType AS 类型, Message AS 内容, LogTime AS 时间
+FROM T_SystemLog
+WHERE (@type = '' OR LogType = @type)
+ORDER BY LogTime DESC
+LIMIT @limit;";
+                cmd.Parameters.AddWithValue("@type", logType ?? string.Empty);
+                cmd.Parameters.AddWithValue("@limit", limit <= 0 ? 50 : limit);
+                adapter.Fill(table);
+            }
+
+            return table;
+        }
+
         public static void WriteSystemLog(string logType, string message)
         {
             ExecuteNonQuery("INSERT INTO T_SystemLog (LogType, Message) VALUES (@type, @message)",
