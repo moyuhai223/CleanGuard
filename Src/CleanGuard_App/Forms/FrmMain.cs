@@ -130,7 +130,15 @@ namespace CleanGuard_App.Forms
 
         private void ShowLockerHeatmapPlaceholder()
         {
-            MessageBox.Show("V1 开发阶段：柜位分布图将在后续版本接入图表组件。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            var summary = SQLiteHelper.GetLockerSummary();
+            string message =
+                "当前柜位占用统计（简版）\n\n" +
+                $"1F 衣柜：{summary.OneFClothesOccupied}/{summary.OneFClothesTotal}\n" +
+                $"1F 鞋柜：{summary.OneFShoeOccupied}/{summary.OneFShoeTotal}\n" +
+                $"2F 衣柜：{summary.TwoFClothesOccupied}/{summary.TwoFClothesTotal}\n" +
+                $"2F 鞋柜：{summary.TwoFShoeOccupied}/{summary.TwoFShoeTotal}";
+
+            MessageBox.Show(message, "柜位分布图（统计版）", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

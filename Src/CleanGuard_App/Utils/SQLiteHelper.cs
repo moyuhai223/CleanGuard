@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS T_SystemLog (
     LogTime DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 ");
+
+            SeedDefaultLockers();
         }
 
         public static DataTable QueryEmployees(string keyword)
@@ -137,6 +139,37 @@ ORDER BY LockerID";
             return list.ToArray();
         }
 
+        public static LockerSummary GetLockerSummary()
+        {
+            var summary = new LockerSummary();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = @"
+SELECT Location, Type,
+       SUM(CASE WHEN IsOccupied = 1 THEN 1 ELSE 0 END) AS OccupiedCount,
+       COUNT(1) AS TotalCount
+FROM T_Lockers
+GROUP BY Location, Type;";
+
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string location = reader["Location"].ToString();
+                        string type = reader["Type"].ToString();
+                        int occupied = Convert.ToInt32(reader["OccupiedCount"]);
+                        int total = Convert.ToInt32(reader["TotalCount"]);
+
+                        summary.Set(location, type, occupied, total);
+                    }
+                }
+            }
+
+            return summary;
+        }
+
         public static void AddEmployee(
             string empNo,
             string name,
@@ -151,40 +184,52 @@ ORDER BY LockerID";
                 throw new ArgumentException("工号和姓名不能为空。");
             }
 
-            using (var conn = new SQLiteConnection(ConnectionString))
+            try
             {
-                conn.Open();
-                using (var tx = conn.BeginTransaction())
+                using (var conn = new SQLiteConnection(ConnectionString))
                 {
-                    EnsureLockerValid(conn, tx, locker1FClothes, "1F", "衣柜", "1F衣柜");
-                    EnsureLockerValid(conn, tx, locker1FShoe, "1F", "鞋柜", "1F鞋柜");
-                    EnsureLockerValid(conn, tx, locker2FClothes, "2F", "衣柜", "2F衣柜");
-                    EnsureLockerValid(conn, tx, locker2FShoe, "2F", "鞋柜", "2F鞋柜");
-
-                    using (var insertCmd = conn.CreateCommand())
+                    conn.Open();
+                    using (var tx = conn.BeginTransaction())
                     {
-                        insertCmd.Transaction = tx;
-                        insertCmd.CommandText = @"INSERT INTO T_Employee
+                        EnsureLockerValid(conn, tx, locker1FClothes, "1F", "衣柜", "1F衣柜");
+                        EnsureLockerValid(conn, tx, locker1FShoe, "1F", "鞋柜", "1F鞋柜");
+                        EnsureLockerValid(conn, tx, locker2FClothes, "2F", "衣柜", "2F衣柜");
+                        EnsureLockerValid(conn, tx, locker2FShoe, "2F", "鞋柜", "2F鞋柜");
+
+                        using (var insertCmd = conn.CreateCommand())
+                        {
+                            insertCmd.Transaction = tx;
+                            insertCmd.CommandText = @"INSERT INTO T_Employee
 (EmpNo, Name, Pinyin, Process, Locker_1F_Clothes, Locker_1F_Shoe, Locker_2F_Clothes, Locker_2F_Shoe, Status)
 VALUES (@EmpNo, @Name, @Pinyin, @Process, @L1C, @L1S, @L2C, @L2S, 1);";
-                        insertCmd.Parameters.AddWithValue("@EmpNo", empNo.Trim());
-                        insertCmd.Parameters.AddWithValue("@Name", name.Trim());
-                        insertCmd.Parameters.AddWithValue("@Pinyin", PinYin.GetFirstLetter(name));
-                        insertCmd.Parameters.AddWithValue("@Process", NormalizeNull(process));
-                        insertCmd.Parameters.AddWithValue("@L1C", NormalizeNull(locker1FClothes));
-                        insertCmd.Parameters.AddWithValue("@L1S", NormalizeNull(locker1FShoe));
-                        insertCmd.Parameters.AddWithValue("@L2C", NormalizeNull(locker2FClothes));
-                        insertCmd.Parameters.AddWithValue("@L2S", NormalizeNull(locker2FShoe));
-                        insertCmd.ExecuteNonQuery();
+                            insertCmd.Parameters.AddWithValue("@EmpNo", empNo.Trim());
+                            insertCmd.Parameters.AddWithValue("@Name", name.Trim());
+                            insertCmd.Parameters.AddWithValue("@Pinyin", PinYin.GetFirstLetter(name));
+                            insertCmd.Parameters.AddWithValue("@Process", NormalizeNull(process));
+                            insertCmd.Parameters.AddWithValue("@L1C", NormalizeNull(locker1FClothes));
+                            insertCmd.Parameters.AddWithValue("@L1S", NormalizeNull(locker1FShoe));
+                            insertCmd.Parameters.AddWithValue("@L2C", NormalizeNull(locker2FClothes));
+                            insertCmd.Parameters.AddWithValue("@L2S", NormalizeNull(locker2FShoe));
+                            insertCmd.ExecuteNonQuery();
+                        }
+
+                        MarkLockerOccupied(conn, tx, locker1FClothes, 1);
+                        MarkLockerOccupied(conn, tx, locker1FShoe, 1);
+                        MarkLockerOccupied(conn, tx, locker2FClothes, 1);
+                        MarkLockerOccupied(conn, tx, locker2FShoe, 1);
+
+                        tx.Commit();
                     }
-
-                    MarkLockerOccupied(conn, tx, locker1FClothes, 1);
-                    MarkLockerOccupied(conn, tx, locker1FShoe, 1);
-                    MarkLockerOccupied(conn, tx, locker2FClothes, 1);
-                    MarkLockerOccupied(conn, tx, locker2FShoe, 1);
-
-                    tx.Commit();
                 }
+            }
+            catch (SQLiteException ex)
+            {
+                if (ex.ResultCode == SQLiteErrorCode.Constraint)
+                {
+                    throw new InvalidOperationException("工号已存在，请检查后重试。");
+                }
+
+                throw;
             }
 
             WriteSystemLog("Employee", $"新增员工成功: {empNo}-{name}");
@@ -263,6 +308,40 @@ FROM T_Employee WHERE EmpNo = @EmpNo";
             ExecuteNonQuery("INSERT INTO T_SystemLog (LogType, Message) VALUES (@type, @message)",
                 new SQLiteParameter("@type", logType),
                 new SQLiteParameter("@message", message));
+        }
+
+        private static void SeedDefaultLockers()
+        {
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var tx = conn.BeginTransaction())
+                {
+                    SeedByType(conn, tx, "1F", "衣柜", "1F-C", 60);
+                    SeedByType(conn, tx, "1F", "鞋柜", "1F-S", 60);
+                    SeedByType(conn, tx, "2F", "衣柜", "2F-C", 60);
+                    SeedByType(conn, tx, "2F", "鞋柜", "2F-S", 60);
+                    tx.Commit();
+                }
+            }
+        }
+
+        private static void SeedByType(SQLiteConnection conn, SQLiteTransaction tx, string location, string type, string prefix, int count)
+        {
+            for (int i = 1; i <= count; i++)
+            {
+                string lockerId = string.Format("{0}-{1:00}", prefix, i);
+                using (var cmd = conn.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = @"INSERT OR IGNORE INTO T_Lockers (LockerID, Location, Type, IsOccupied)
+VALUES (@LockerID, @Location, @Type, 0)";
+                    cmd.Parameters.AddWithValue("@LockerID", lockerId);
+                    cmd.Parameters.AddWithValue("@Location", location);
+                    cmd.Parameters.AddWithValue("@Type", type);
+                    cmd.ExecuteNonQuery();
+                }
+            }
         }
 
         private static void EnsureLockerValid(SQLiteConnection conn, SQLiteTransaction tx, string lockerId, string location, string type, string displayName)
@@ -354,5 +433,41 @@ FROM T_Employee WHERE EmpNo = @EmpNo";
         public string Locker2FClothes { get; set; }
         public string Locker2FShoe { get; set; }
         public int Status { get; set; }
+    }
+
+    public class LockerSummary
+    {
+        public int OneFClothesOccupied { get; set; }
+        public int OneFClothesTotal { get; set; }
+        public int OneFShoeOccupied { get; set; }
+        public int OneFShoeTotal { get; set; }
+        public int TwoFClothesOccupied { get; set; }
+        public int TwoFClothesTotal { get; set; }
+        public int TwoFShoeOccupied { get; set; }
+        public int TwoFShoeTotal { get; set; }
+
+        public void Set(string location, string type, int occupied, int total)
+        {
+            if (location == "1F" && type == "衣柜")
+            {
+                OneFClothesOccupied = occupied;
+                OneFClothesTotal = total;
+            }
+            else if (location == "1F" && type == "鞋柜")
+            {
+                OneFShoeOccupied = occupied;
+                OneFShoeTotal = total;
+            }
+            else if (location == "2F" && type == "衣柜")
+            {
+                TwoFClothesOccupied = occupied;
+                TwoFClothesTotal = total;
+            }
+            else if (location == "2F" && type == "鞋柜")
+            {
+                TwoFShoeOccupied = occupied;
+                TwoFShoeTotal = total;
+            }
+        }
     }
 }

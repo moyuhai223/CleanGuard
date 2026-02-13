@@ -42,3 +42,36 @@ CREATE TABLE IF NOT EXISTS T_SystemLog (
     Message TEXT,
     LogTime DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 默认柜位初始化（每层 60 衣柜 + 60 鞋柜）
+WITH RECURSIVE seq(x) AS (
+    SELECT 1
+    UNION ALL
+    SELECT x + 1 FROM seq WHERE x < 60
+)
+INSERT OR IGNORE INTO T_Lockers (LockerID, Location, Type, IsOccupied)
+SELECT printf('1F-C-%02d', x), '1F', '衣柜', 0 FROM seq;
+
+WITH RECURSIVE seq(x) AS (
+    SELECT 1
+    UNION ALL
+    SELECT x + 1 FROM seq WHERE x < 60
+)
+INSERT OR IGNORE INTO T_Lockers (LockerID, Location, Type, IsOccupied)
+SELECT printf('1F-S-%02d', x), '1F', '鞋柜', 0 FROM seq;
+
+WITH RECURSIVE seq(x) AS (
+    SELECT 1
+    UNION ALL
+    SELECT x + 1 FROM seq WHERE x < 60
+)
+INSERT OR IGNORE INTO T_Lockers (LockerID, Location, Type, IsOccupied)
+SELECT printf('2F-C-%02d', x), '2F', '衣柜', 0 FROM seq;
+
+WITH RECURSIVE seq(x) AS (
+    SELECT 1
+    UNION ALL
+    SELECT x + 1 FROM seq WHERE x < 60
+)
+INSERT OR IGNORE INTO T_Lockers (LockerID, Location, Type, IsOccupied)
+SELECT printf('2F-S-%02d', x), '2F', '鞋柜', 0 FROM seq;
