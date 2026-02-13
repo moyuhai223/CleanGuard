@@ -126,8 +126,15 @@ namespace CleanGuard_App.Forms
                 return;
             }
 
-            Printer.ShowLabelPreview(empNo, name, process, locker2F);
-            SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {empNo}-{name}, 二维码内容={Printer.BuildQrPayload(empNo, name, locker2F)}");
+            try
+            {
+                Printer.ShowLabelPreview(empNo, name, process, locker2F);
+                SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {empNo}-{name}, 二维码内容={Printer.BuildQrPayload(empNo, name, locker2F)}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("打印预览失败：" + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void ResignSelectedEmployee()
