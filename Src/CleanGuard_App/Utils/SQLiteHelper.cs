@@ -392,24 +392,55 @@ FROM T_Employee WHERE EmpNo = @EmpNo";
                 conn.Open();
                 using (var tx = conn.BeginTransaction())
                 {
-                    using (var cmd = conn.CreateCommand())
-                    {
-                        cmd.Transaction = tx;
-                        cmd.CommandText = "UPDATE T_Employee SET Status = 0 WHERE EmpNo = @EmpNo";
-                        cmd.Parameters.AddWithValue("@EmpNo", empNo);
-                        cmd.ExecuteNonQuery();
-                    }
-
                     MarkLockerOccupied(conn, tx, info.Locker1FClothes, 0);
                     MarkLockerOccupied(conn, tx, info.Locker1FShoe, 0);
                     MarkLockerOccupied(conn, tx, info.Locker2FClothes, 0);
                     MarkLockerOccupied(conn, tx, info.Locker2FShoe, 0);
+
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.Transaction = tx;
+                        cmd.CommandText = @"UPDATE T_Employee
+SET Status = 0,
+    Locker_1F_Clothes = NULL,
+    Locker_1F_Shoe = NULL,
+    Locker_2F_Clothes = NULL,
+    Locker_2F_Shoe = NULL
+WHERE EmpNo = @EmpNo";
+                        cmd.Parameters.AddWithValue("@EmpNo", empNo);
+                        cmd.ExecuteNonQuery();
+                    }
 
                     tx.Commit();
                 }
             }
 
             WriteSystemLog("Employee", $"员工离职并释放柜位: {info.EmpNo}-{info.Name}");
+        }
+
+        public static void RestoreEmployee(string empNo)
+        {
+            var info = GetEmployeeLockerInfo(empNo);
+            if (info == null)
+            {
+                throw new InvalidOperationException("未找到该员工。");
+            }
+
+            if (info.Status == 1)
+            {
+                return;
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = "UPDATE T_Employee SET Status = 1 WHERE EmpNo = @EmpNo";
+                cmd.Parameters.AddWithValue("@EmpNo", empNo);
+                cmd.ExecuteNonQuery();
+            }
+
+            WriteSystemLog("Employee", $"员工复职: {info.EmpNo}-{info.Name}");
         }
 
         public static DataTable QuerySystemLogs(string logType, int limit)
