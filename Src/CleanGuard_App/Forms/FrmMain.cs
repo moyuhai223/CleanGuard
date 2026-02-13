@@ -15,6 +15,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnPrintLabel = new Button();
         private readonly Button _btnLockerMap = new Button();
         private readonly Button _btnImport = new Button();
+        private readonly Button _btnLogs = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
         public FrmMain()
@@ -62,6 +63,11 @@ namespace CleanGuard_App.Forms
             _btnLockerMap.SetBounds(720, 20, 120, 30);
             _btnLockerMap.Click += (s, e) => OpenLockerChart();
             Controls.Add(_btnLockerMap);
+
+            _btnLogs.Text = "系统日志";
+            _btnLogs.SetBounds(850, 20, 90, 30);
+            _btnLogs.Click += (s, e) => OpenSystemLogs();
+            Controls.Add(_btnLogs);
 
             _grid.SetBounds(20, 70, 1220, 590);
             _grid.ReadOnly = true;
@@ -185,6 +191,14 @@ namespace CleanGuard_App.Forms
         private void OpenLockerChart()
         {
             using (var form = new FrmLockerChart())
+            {
+                form.ShowDialog(this);
+            }
+        }
+
+        private void OpenSystemLogs()
+        {
+            using (var form = new FrmSystemLog())
             {
                 form.ShowDialog(this);
             }

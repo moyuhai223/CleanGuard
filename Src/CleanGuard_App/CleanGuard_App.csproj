@@ -47,6 +47,7 @@
     <Compile Include="Forms\FrmEditor.cs" />
     <Compile Include="Forms\FrmImport.cs" />
     <Compile Include="Forms\FrmLockerChart.cs" />
+    <Compile Include="Forms\FrmSystemLog.cs" />
     <Compile Include="Utils\SQLiteHelper.cs" />
     <Compile Include="Utils\PinYin.cs" />
     <Compile Include="Utils\ImportHelper.cs" />
