@@ -60,7 +60,7 @@ namespace CleanGuard_App.Forms
 
             _btnLockerMap.Text = "柜位分布图";
             _btnLockerMap.SetBounds(720, 20, 120, 30);
-            _btnLockerMap.Click += (s, e) => ShowLockerHeatmapPlaceholder();
+            _btnLockerMap.Click += (s, e) => OpenLockerChart();
             Controls.Add(_btnLockerMap);
 
             _grid.SetBounds(20, 70, 1220, 590);
@@ -182,17 +182,12 @@ namespace CleanGuard_App.Forms
             return string.IsNullOrWhiteSpace(locker) ? "(空)" : locker;
         }
 
-        private void ShowLockerHeatmapPlaceholder()
+        private void OpenLockerChart()
         {
-            var summary = SQLiteHelper.GetLockerSummary();
-            string message =
-                "当前柜位占用统计（简版）\n\n" +
-                $"1F 衣柜：{summary.OneFClothesOccupied}/{summary.OneFClothesTotal}\n" +
-                $"1F 鞋柜：{summary.OneFShoeOccupied}/{summary.OneFShoeTotal}\n" +
-                $"2F 衣柜：{summary.TwoFClothesOccupied}/{summary.TwoFClothesTotal}\n" +
-                $"2F 鞋柜：{summary.TwoFShoeOccupied}/{summary.TwoFShoeTotal}";
-
-            MessageBox.Show(message, "柜位分布图（统计版）", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            using (var form = new FrmLockerChart())
+            {
+                form.ShowDialog(this);
+            }
         }
     }
 }
