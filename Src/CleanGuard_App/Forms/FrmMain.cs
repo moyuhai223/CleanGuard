@@ -12,6 +12,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnSearch = new Button();
         private readonly Button _btnAdd = new Button();
         private readonly Button _btnResign = new Button();
+        private readonly Button _btnPrintLabel = new Button();
         private readonly Button _btnLockerMap = new Button();
         private readonly Button _btnImport = new Button();
         private readonly DataGridView _grid = new DataGridView();
@@ -29,31 +30,36 @@ namespace CleanGuard_App.Forms
 
         private void InitializeLayout()
         {
-            _txtSearch.SetBounds(20, 20, 220, 30);
+            _txtSearch.SetBounds(20, 20, 200, 30);
             Controls.Add(_txtSearch);
 
             _btnSearch.Text = "搜索";
-            _btnSearch.SetBounds(250, 20, 70, 30);
+            _btnSearch.SetBounds(230, 20, 70, 30);
             _btnSearch.Click += (s, e) => LoadEmployeeData(_txtSearch.Text.Trim());
             Controls.Add(_btnSearch);
 
             _btnAdd.Text = "新增员工";
-            _btnAdd.SetBounds(330, 20, 95, 30);
+            _btnAdd.SetBounds(310, 20, 90, 30);
             _btnAdd.Click += (s, e) => OpenEditor();
             Controls.Add(_btnAdd);
 
             _btnResign.Text = "办理离职";
-            _btnResign.SetBounds(435, 20, 95, 30);
+            _btnResign.SetBounds(410, 20, 90, 30);
             _btnResign.Click += (s, e) => ResignSelectedEmployee();
             Controls.Add(_btnResign);
 
+            _btnPrintLabel.Text = "打印标签";
+            _btnPrintLabel.SetBounds(510, 20, 90, 30);
+            _btnPrintLabel.Click += (s, e) => PrintSelectedEmployeeLabel();
+            Controls.Add(_btnPrintLabel);
+
             _btnImport.Text = "数据导入";
-            _btnImport.SetBounds(540, 20, 110, 30);
+            _btnImport.SetBounds(610, 20, 100, 30);
             _btnImport.Click += (s, e) => OpenImportForm();
             Controls.Add(_btnImport);
 
             _btnLockerMap.Text = "柜位分布图";
-            _btnLockerMap.SetBounds(660, 20, 120, 30);
+            _btnLockerMap.SetBounds(720, 20, 120, 30);
             _btnLockerMap.Click += (s, e) => ShowLockerHeatmapPlaceholder();
             Controls.Add(_btnLockerMap);
 
@@ -98,6 +104,30 @@ namespace CleanGuard_App.Forms
                     LoadEmployeeData(_txtSearch.Text.Trim());
                 }
             }
+        }
+
+        private void PrintSelectedEmployeeLabel()
+        {
+            if (_grid.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var row = _grid.SelectedRows[0];
+            string empNo = Convert.ToString(row.Cells["工号"].Value);
+            string name = Convert.ToString(row.Cells["姓名"].Value);
+            string process = Convert.ToString(row.Cells["工序"].Value);
+            string locker2F = Convert.ToString(row.Cells["2F衣柜"].Value);
+
+            if (string.IsNullOrWhiteSpace(empNo) || string.IsNullOrWhiteSpace(name))
+            {
+                MessageBox.Show("当前选中数据不完整，无法打印。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            Printer.ShowLabelPreview(empNo, name, process, locker2F);
+            SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {empNo}-{name}, 二维码内容={Printer.BuildQrPayload(empNo, name, locker2F)}");
         }
 
         private void ResignSelectedEmployee()
