@@ -30,6 +30,35 @@ namespace CleanGuard_App.Utils
             ExportTemplateCsv(filePath);
         }
 
+        public static string ExportTemplateWithFallback(string filePath, out string warningMessage)
+        {
+            warningMessage = null;
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext != ".xlsx")
+            {
+                ExportTemplateCsv(filePath);
+                return filePath;
+            }
+
+            try
+            {
+                ExportTemplateXlsx(filePath);
+                return filePath;
+            }
+            catch (Exception ex)
+            {
+                if (!IsSharpZipLibMissing(ex))
+                {
+                    throw;
+                }
+
+                string csvPath = Path.ChangeExtension(filePath, ".csv");
+                ExportTemplateCsv(csvPath);
+                warningMessage = "当前运行环境缺少 NPOI 依赖 ICSharpCode.SharpZipLib，已自动降级导出为 CSV 模板。";
+                return csvPath;
+            }
+        }
+
         public static ImportResult ImportFromFile(string filePath)
         {
             string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
@@ -55,6 +84,35 @@ namespace CleanGuard_App.Utils
             sb.AppendLine("1F-C-01,1F,衣柜,");
             sb.AppendLine("1F-S-01,1F,鞋柜,");
             File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+        }
+
+        public static string ExportLockerTemplateWithFallback(string filePath, out string warningMessage)
+        {
+            warningMessage = null;
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext != ".xlsx")
+            {
+                ExportLockerTemplate(filePath);
+                return filePath;
+            }
+
+            try
+            {
+                ExportLockerTemplateXlsx(filePath);
+                return filePath;
+            }
+            catch (Exception ex)
+            {
+                if (!IsSharpZipLibMissing(ex))
+                {
+                    throw;
+                }
+
+                string csvPath = Path.ChangeExtension(filePath, ".csv");
+                ExportLockerTemplate(csvPath);
+                warningMessage = "当前运行环境缺少 NPOI 依赖 ICSharpCode.SharpZipLib，已自动降级导出为 CSV 模板。";
+                return csvPath;
+            }
         }
 
         public static ProcessImportResult ImportLockersFromFile(string filePath)
@@ -332,26 +390,48 @@ namespace CleanGuard_App.Utils
             if (cells == null || cells.Length < 7)
             {
                 result.FailedCount++;
-                result.Errors.Add(string.Format("第 {0} 行列数不足，至少需要 7 列。", rowNumber));
+                result.Errors.Add(BuildColumnError(rowNumber, 7, "CG-IMP-001", "列数不足，至少需要 7 列（工号~2F鞋柜）。", "请使用系统模板重新导出后填充数据，确保前 7 列均存在。"));
+                return;
+            }
+
+            string empNo = SafeCell(cells, 0);
+            string name = SafeCell(cells, 1);
+            string process = SafeCell(cells, 2);
+            string locker1FClothes = SafeCell(cells, 3);
+            string locker1FShoe = SafeCell(cells, 4);
+            string locker2FClothes = SafeCell(cells, 5);
+            string locker2FShoe = SafeCell(cells, 6);
+
+            if (string.IsNullOrWhiteSpace(empNo))
+            {
+                result.FailedCount++;
+                result.Errors.Add(BuildColumnError(rowNumber, 1, "CG-IMP-002", "工号不能为空。", "请填写唯一工号，例如 P001。"));
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                result.FailedCount++;
+                result.Errors.Add(BuildColumnError(rowNumber, 2, "CG-IMP-003", "姓名不能为空。", "请填写员工姓名。"));
                 return;
             }
 
             try
             {
                 SQLiteHelper.AddEmployee(
-                    SafeCell(cells, 0),
-                    SafeCell(cells, 1),
-                    SafeCell(cells, 2),
-                    SafeCell(cells, 3),
-                    SafeCell(cells, 4),
-                    SafeCell(cells, 5),
-                    SafeCell(cells, 6));
+                    empNo,
+                    name,
+                    process,
+                    locker1FClothes,
+                    locker1FShoe,
+                    locker2FClothes,
+                    locker2FShoe);
                 result.SuccessCount++;
             }
             catch (Exception ex)
             {
                 result.FailedCount++;
-                result.Errors.Add(string.Format("第 {0} 行导入失败（工号: {1}）：{2}", rowNumber, SafeCell(cells, 0), ex.Message));
+                result.Errors.Add(MapEmployeeImportException(rowNumber, ex, empNo, locker1FClothes, locker1FShoe, locker2FClothes, locker2FShoe));
             }
         }
 
@@ -377,21 +457,32 @@ namespace CleanGuard_App.Utils
             if (string.IsNullOrWhiteSpace(lockerId) || string.IsNullOrWhiteSpace(location) || string.IsNullOrWhiteSpace(type))
             {
                 result.FailedCount++;
-                result.Errors.Add(string.Format("第 {0} 行导入失败：柜号/楼层/类型不能为空。", rowNumber));
+                if (string.IsNullOrWhiteSpace(lockerId))
+                {
+                    result.Errors.Add(BuildColumnError(rowNumber, offset + 1, "CG-LOCKER-001", "柜号不能为空。", "请填写柜号，例如 1F-C-01。"));
+                }
+                else if (string.IsNullOrWhiteSpace(location))
+                {
+                    result.Errors.Add(BuildColumnError(rowNumber, offset + 2, "CG-LOCKER-002", "楼层不能为空。", "请填写 1F 或 2F。"));
+                }
+                else
+                {
+                    result.Errors.Add(BuildColumnError(rowNumber, offset + 3, "CG-LOCKER-003", "类型不能为空。", "请填写 衣柜 或 鞋柜。"));
+                }
                 return;
             }
 
             if (location != "1F" && location != "2F")
             {
                 result.FailedCount++;
-                result.Errors.Add(string.Format("第 {0} 行导入失败：楼层仅支持 1F 或 2F。", rowNumber));
+                result.Errors.Add(BuildColumnError(rowNumber, offset + 2, "CG-LOCKER-004", "楼层仅支持 1F 或 2F。", "将楼层修正为 1F 或 2F。"));
                 return;
             }
 
             if (type != "衣柜" && type != "鞋柜")
             {
                 result.FailedCount++;
-                result.Errors.Add(string.Format("第 {0} 行导入失败：类型仅支持 衣柜 或 鞋柜。", rowNumber));
+                result.Errors.Add(BuildColumnError(rowNumber, offset + 3, "CG-LOCKER-005", "类型仅支持 衣柜 或 鞋柜。", "将类型修正为 衣柜 或 鞋柜。"));
                 return;
             }
 
@@ -433,6 +524,88 @@ namespace CleanGuard_App.Utils
             }
 
             return (cells[index] ?? string.Empty).Trim();
+        }
+
+        private static bool IsSharpZipLibMissing(Exception ex)
+        {
+            return ex != null && ex.ToString().IndexOf("ICSharpCode.SharpZipLib", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static string BuildColumnError(int rowNumber, int columnNumber, string errorCode, string reason, string suggestion)
+        {
+            return string.Format("第 {0} 行，第 {1} 列（错误码 {2}）：{3} 建议修复：{4}", rowNumber, columnNumber, errorCode, reason, suggestion);
+        }
+
+        private static string MapEmployeeImportException(
+            int rowNumber,
+            Exception ex,
+            string empNo,
+            string locker1FClothes,
+            string locker1FShoe,
+            string locker2FClothes,
+            string locker2FShoe)
+        {
+            string message = ex == null ? string.Empty : ex.Message ?? string.Empty;
+            if (message.Contains("工号已存在"))
+            {
+                return BuildColumnError(rowNumber, 1, "CG-IMP-004", "工号重复，系统中已存在该工号。", "更换为未使用的工号后重试。");
+            }
+
+            if (message.Contains("1F衣柜") && message.Contains("不存在"))
+            {
+                return BuildColumnError(rowNumber, 4, "CG-IMP-005", message, "检查该柜号是否已在柜位主数据中维护，或改为有效柜号。");
+            }
+
+            if (message.Contains("1F鞋柜") && message.Contains("不存在"))
+            {
+                return BuildColumnError(rowNumber, 5, "CG-IMP-006", message, "检查该柜号是否已在柜位主数据中维护，或改为有效柜号。");
+            }
+
+            if (message.Contains("2F衣柜") && message.Contains("不存在"))
+            {
+                return BuildColumnError(rowNumber, 6, "CG-IMP-007", message, "检查该柜号是否已在柜位主数据中维护，或改为有效柜号。");
+            }
+
+            if (message.Contains("2F鞋柜") && message.Contains("不存在"))
+            {
+                return BuildColumnError(rowNumber, 7, "CG-IMP-008", message, "检查该柜号是否已在柜位主数据中维护，或改为有效柜号。");
+            }
+
+            if (message.Contains("已被占用"))
+            {
+                int column = 4;
+                if (!string.IsNullOrWhiteSpace(locker1FShoe) && message.Contains(locker1FShoe))
+                {
+                    column = 5;
+                }
+                else if (!string.IsNullOrWhiteSpace(locker2FClothes) && message.Contains(locker2FClothes))
+                {
+                    column = 6;
+                }
+                else if (!string.IsNullOrWhiteSpace(locker2FShoe) && message.Contains(locker2FShoe))
+                {
+                    column = 7;
+                }
+
+                return BuildColumnError(rowNumber, column, "CG-IMP-009", message, "请改为未占用柜位，或先释放该柜位后再导入。");
+            }
+
+            if (message.Contains("不属于 1F") || message.Contains("是鞋柜，不能分配给1F衣柜") || message.Contains("是衣柜，不能分配给1F鞋柜"))
+            {
+                return BuildColumnError(rowNumber, 4, "CG-IMP-010", message, "确认第 4 列为 1F 衣柜柜号，且楼层/类型匹配。");
+            }
+
+            if (message.Contains("是鞋柜，不能分配给2F衣柜") || message.Contains("不属于 2F"))
+            {
+                return BuildColumnError(rowNumber, 6, "CG-IMP-011", message, "确认第 6 列为 2F 衣柜柜号，且楼层/类型匹配。");
+            }
+
+            if (message.Contains("是衣柜，不能分配给2F鞋柜"))
+            {
+                return BuildColumnError(rowNumber, 7, "CG-IMP-012", message, "确认第 7 列为 2F 鞋柜柜号，且楼层/类型匹配。");
+            }
+
+            return string.Format("第 {0} 行（工号: {1}，错误码 CG-IMP-999）：{2} 建议修复：根据提示修正对应列后重试。", rowNumber, empNo, message);
         }
 
         private static string[] SplitCsvLine(string line)
