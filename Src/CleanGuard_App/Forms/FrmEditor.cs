@@ -20,12 +20,7 @@ namespace CleanGuard_App.Forms
 
         private readonly Dictionary<string, DataGridView> _itemGrids = new Dictionary<string, DataGridView>();
         private readonly Dictionary<string, int> _categoryLimits = new Dictionary<string, int>
-        {
-            { "无尘服", 10 },
-            { "安全鞋", 5 },
-            { "帆布鞋", 5 },
-            { "洁净帽", 10 }
-        };
+        {};
         private readonly string[] _categories = { "无尘服", "安全鞋", "帆布鞋", "洁净帽" };
         private readonly string _editingEmpNo;
 
@@ -38,7 +33,17 @@ namespace CleanGuard_App.Forms
             StartPosition = FormStartPosition.CenterParent;
 
             InitializeLayout();
+            LoadCategoryLimits();
             LoadData();
+        }
+
+        private void LoadCategoryLimits()
+        {
+            _categoryLimits.Clear();
+            foreach (var pair in SQLiteHelper.GetItemCategoryLimits())
+            {
+                _categoryLimits[pair.Key] = pair.Value;
+            }
         }
 
         private void InitializeLayout()
@@ -438,7 +443,13 @@ namespace CleanGuard_App.Forms
                 try
                 {
                     string text = File.ReadAllText(dialog.FileName, Encoding.UTF8);
-                    int added = AppendRowsFromText(grid, category, text, true);
+                    var preview = BuildImportPreview(category, text, true);
+                    if (!ShowImportPreviewDialog(preview, category))
+                    {
+                        return;
+                    }
+
+                    int added = AppendValidRows(grid, category, preview);
                     MessageBox.Show(string.Format("导入成功，共新增 {0} 行。", added), "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
@@ -446,6 +457,188 @@ namespace CleanGuard_App.Forms
                     MessageBox.Show(ex.Message, "导入失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
+        }
+
+        private List<ItemImportPreviewRow> BuildImportPreview(string category, string text, bool skipHeader)
+        {
+            string[] lines = text.Replace("\r", string.Empty).Split('\n');
+            int start = skipHeader && lines.Length > 0 ? 1 : 0;
+            var list = new List<ItemImportPreviewRow>();
+            int slot = _itemGrids[category].Rows.Count + 1;
+            int max = GetCategoryLimit(category);
+
+            for (int i = start; i < lines.Length; i++)
+            {
+                string line = (lines[i] ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                var row = ParseImportLine(category, line, i + 1);
+                if (string.IsNullOrWhiteSpace(row.Error) && slot > max)
+                {
+                    row.Error = string.Format("超过类别上限 {0}", max);
+                }
+
+                if (string.IsNullOrWhiteSpace(row.Error))
+                {
+                    slot++;
+                }
+
+                list.Add(row);
+            }
+
+            return list;
+        }
+
+        private ItemImportPreviewRow ParseImportLine(string category, string line, int sourceLine)
+        {
+            string[] cells = line.Split('\t');
+            if (cells.Length == 1 && line.Contains(","))
+            {
+                cells = line.Split(',');
+            }
+
+            string size = GetCell(cells, 0);
+            string itemCode = string.Empty;
+            string itemCondition = string.Empty;
+            string issueDate = string.Empty;
+
+            if (NeedCodeColumn(category))
+            {
+                itemCode = GetCell(cells, 1);
+                issueDate = GetCell(cells, 2);
+            }
+            else
+            {
+                itemCondition = GetCell(cells, 1);
+                issueDate = GetCell(cells, 2);
+            }
+
+            string error = string.Empty;
+            if (!string.IsNullOrWhiteSpace(issueDate))
+            {
+                DateTime date;
+                if (!DateTime.TryParse(issueDate, out date))
+                {
+                    error = "领用日期格式错误(yyyy-MM-dd)";
+                }
+                else
+                {
+                    issueDate = date.ToString("yyyy-MM-dd");
+                }
+            }
+
+            if (NeedConditionColumn(category) && !string.IsNullOrWhiteSpace(itemCondition) && itemCondition != "新" && itemCondition != "旧")
+            {
+                error = "新旧仅支持：新/旧";
+            }
+
+            return new ItemImportPreviewRow
+            {
+                SourceLine = sourceLine,
+                Size = size,
+                ItemCode = itemCode,
+                ItemCondition = itemCondition,
+                IssueDate = issueDate,
+                Error = error
+            };
+        }
+
+        private bool ShowImportPreviewDialog(List<ItemImportPreviewRow> preview, string category)
+        {
+            using (var dialog = new Form())
+            {
+                dialog.Text = "用品导入预检 - " + category;
+                dialog.Width = 860;
+                dialog.Height = 500;
+                dialog.StartPosition = FormStartPosition.CenterParent;
+
+                var grid = new DataGridView
+                {
+                    Left = 10,
+                    Top = 10,
+                    Width = 820,
+                    Height = 390,
+                    ReadOnly = true,
+                    AllowUserToAddRows = false,
+                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+                };
+
+                grid.Columns.Add("line", "源行号");
+                grid.Columns.Add("size", "尺码");
+                grid.Columns.Add("code", "编码");
+                grid.Columns.Add("condition", "新旧");
+                grid.Columns.Add("date", "领用日期");
+                grid.Columns.Add("error", "预检结果");
+
+                int errorCount = 0;
+                var errorLines = new StringBuilder();
+                foreach (var row in preview)
+                {
+                    string status = string.IsNullOrWhiteSpace(row.Error) ? "通过" : row.Error;
+                    grid.Rows.Add(row.SourceLine, row.Size, row.ItemCode, row.ItemCondition, row.IssueDate, status);
+                    if (!string.IsNullOrWhiteSpace(row.Error))
+                    {
+                        errorCount++;
+                        errorLines.AppendLine(string.Format("第 {0} 行：{1}", row.SourceLine, row.Error));
+                    }
+                }
+
+                var lbl = new Label
+                {
+                    Left = 10,
+                    Top = 408,
+                    Width = 500,
+                    Height = 24,
+                    Text = string.Format("预检完成：共 {0} 行，错误 {1} 行。", preview.Count, errorCount)
+                };
+
+                var btnCopy = new Button { Left = 520, Top = 404, Width = 100, Height = 28, Text = "复制错误" };
+                btnCopy.Click += (s, e) =>
+                {
+                    Clipboard.SetText(errorLines.ToString());
+                    MessageBox.Show("错误信息已复制。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+
+                var btnContinue = new Button { Left = 630, Top = 404, Width = 90, Height = 28, Text = "继续导入" };
+                btnContinue.Click += (s, e) => dialog.DialogResult = DialogResult.OK;
+
+                var btnCancel = new Button { Left = 730, Top = 404, Width = 90, Height = 28, Text = "取消" };
+                btnCancel.Click += (s, e) => dialog.DialogResult = DialogResult.Cancel;
+
+                dialog.Controls.Add(grid);
+                dialog.Controls.Add(lbl);
+                dialog.Controls.Add(btnCopy);
+                dialog.Controls.Add(btnContinue);
+                dialog.Controls.Add(btnCancel);
+
+                if (preview.Count == 0)
+                {
+                    MessageBox.Show("未检测到可导入数据。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return false;
+                }
+
+                return dialog.ShowDialog(this) == DialogResult.OK;
+            }
+        }
+
+        private int AppendValidRows(DataGridView grid, string category, List<ItemImportPreviewRow> preview)
+        {
+            int added = 0;
+            foreach (var row in preview)
+            {
+                if (!string.IsNullOrWhiteSpace(row.Error))
+                {
+                    continue;
+                }
+
+                AddItemRowWithLimit(grid, category, row.Size, row.ItemCode, row.ItemCondition, row.IssueDate);
+                added++;
+            }
+
+            return added;
         }
 
         private int AppendRowsFromText(DataGridView grid, string category, string text, bool skipHeader = false)
@@ -534,6 +727,16 @@ namespace CleanGuard_App.Forms
             }
 
             return "42,新," + DateTime.Now.ToString("yyyy-MM-dd");
+        }
+
+        private class ItemImportPreviewRow
+        {
+            public int SourceLine { get; set; }
+            public string Size { get; set; }
+            public string ItemCode { get; set; }
+            public string ItemCondition { get; set; }
+            public string IssueDate { get; set; }
+            public string Error { get; set; }
         }
 
         private static void BindLockerCombo(ComboBox comboBox, string location, string type, string selectedLocker)

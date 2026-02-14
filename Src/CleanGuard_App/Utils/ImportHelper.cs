@@ -390,7 +390,9 @@ namespace CleanGuard_App.Utils
             if (cells == null || cells.Length < 7)
             {
                 result.FailedCount++;
-                result.Errors.Add(BuildColumnError(rowNumber, 7, "CG-IMP-001", "列数不足，至少需要 7 列（工号~2F鞋柜）。", "请使用系统模板重新导出后填充数据，确保前 7 列均存在。"));
+                string error = BuildColumnError(rowNumber, 7, "CG-IMP-001", "列数不足，至少需要 7 列（工号~2F鞋柜）。", "请使用系统模板重新导出后填充数据，确保前 7 列均存在。");
+                result.Errors.Add(error);
+                result.FailedRows.Add(ImportFailureRow.Create(rowNumber, cells, error));
                 return;
             }
 
@@ -405,14 +407,18 @@ namespace CleanGuard_App.Utils
             if (string.IsNullOrWhiteSpace(empNo))
             {
                 result.FailedCount++;
-                result.Errors.Add(BuildColumnError(rowNumber, 1, "CG-IMP-002", "工号不能为空。", "请填写唯一工号，例如 P001。"));
+                string error = BuildColumnError(rowNumber, 1, "CG-IMP-002", "工号不能为空。", "请填写唯一工号，例如 P001。");
+                result.Errors.Add(error);
+                result.FailedRows.Add(ImportFailureRow.Create(rowNumber, cells, error));
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(name))
             {
                 result.FailedCount++;
-                result.Errors.Add(BuildColumnError(rowNumber, 2, "CG-IMP-003", "姓名不能为空。", "请填写员工姓名。"));
+                string error = BuildColumnError(rowNumber, 2, "CG-IMP-003", "姓名不能为空。", "请填写员工姓名。");
+                result.Errors.Add(error);
+                result.FailedRows.Add(ImportFailureRow.Create(rowNumber, cells, error));
                 return;
             }
 
@@ -431,7 +437,9 @@ namespace CleanGuard_App.Utils
             catch (Exception ex)
             {
                 result.FailedCount++;
-                result.Errors.Add(MapEmployeeImportException(rowNumber, ex, empNo, locker1FClothes, locker1FShoe, locker2FClothes, locker2FShoe));
+                string error = MapEmployeeImportException(rowNumber, ex, empNo, locker1FClothes, locker1FShoe, locker2FClothes, locker2FShoe);
+                result.Errors.Add(error);
+                result.FailedRows.Add(ImportFailureRow.Create(rowNumber, cells, error));
             }
         }
 
@@ -652,6 +660,7 @@ namespace CleanGuard_App.Utils
         public string SourceFile { get; set; }
         public DateTime ImportTime { get; set; }
         public List<string> Errors { get; } = new List<string>();
+        public List<ImportFailureRow> FailedRows { get; } = new List<ImportFailureRow>();
 
         public void ExportErrors(string filePath)
         {
@@ -667,6 +676,12 @@ namespace CleanGuard_App.Utils
 
         public void ExportErrorsCsv(string filePath)
         {
+            if (FailedRows.Count > 0)
+            {
+                ExportRefillTemplateCsv(filePath);
+                return;
+            }
+
             var sb = new StringBuilder();
             sb.AppendLine("序号,错误信息");
             for (int i = 0; i < Errors.Count; i++)
@@ -682,6 +697,12 @@ namespace CleanGuard_App.Utils
 
         public void ExportErrorsXlsx(string filePath)
         {
+            if (FailedRows.Count > 0)
+            {
+                ExportRefillTemplateXlsx(filePath);
+                return;
+            }
+
             var workbook = new XSSFWorkbook();
             using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
             {
@@ -704,6 +725,103 @@ namespace CleanGuard_App.Utils
         private static string Escape(string text)
         {
             return (text ?? string.Empty).Replace("\"", "\"\"");
+        }
+
+        private void ExportRefillTemplateCsv(string filePath)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("源行号,工号,姓名,工序,1F衣柜,1F鞋柜,2F衣柜,2F鞋柜,错误信息");
+            for (int i = 0; i < FailedRows.Count; i++)
+            {
+                var row = FailedRows[i];
+                sb.Append(row.RowNumber).Append(',')
+                    .Append('"').Append(Escape(row.EmpNo)).Append('"').Append(',')
+                    .Append('"').Append(Escape(row.Name)).Append('"').Append(',')
+                    .Append('"').Append(Escape(row.Process)).Append('"').Append(',')
+                    .Append('"').Append(Escape(row.Locker1FClothes)).Append('"').Append(',')
+                    .Append('"').Append(Escape(row.Locker1FShoe)).Append('"').Append(',')
+                    .Append('"').Append(Escape(row.Locker2FClothes)).Append('"').Append(',')
+                    .Append('"').Append(Escape(row.Locker2FShoe)).Append('"').Append(',')
+                    .Append('"').Append(Escape(row.Error)).Append('"')
+                    .AppendLine();
+            }
+
+            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+        }
+
+        private void ExportRefillTemplateXlsx(string filePath)
+        {
+            var workbook = new XSSFWorkbook();
+            using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+            {
+                ISheet sheet = workbook.CreateSheet("失败回填模板");
+                var header = sheet.CreateRow(0);
+                header.CreateCell(0).SetCellValue("源行号");
+                header.CreateCell(1).SetCellValue("工号");
+                header.CreateCell(2).SetCellValue("姓名");
+                header.CreateCell(3).SetCellValue("工序");
+                header.CreateCell(4).SetCellValue("1F衣柜");
+                header.CreateCell(5).SetCellValue("1F鞋柜");
+                header.CreateCell(6).SetCellValue("2F衣柜");
+                header.CreateCell(7).SetCellValue("2F鞋柜");
+                header.CreateCell(8).SetCellValue("错误信息");
+
+                for (int i = 0; i < FailedRows.Count; i++)
+                {
+                    var r = FailedRows[i];
+                    var row = sheet.CreateRow(i + 1);
+                    row.CreateCell(0).SetCellValue(r.RowNumber);
+                    row.CreateCell(1).SetCellValue(r.EmpNo ?? string.Empty);
+                    row.CreateCell(2).SetCellValue(r.Name ?? string.Empty);
+                    row.CreateCell(3).SetCellValue(r.Process ?? string.Empty);
+                    row.CreateCell(4).SetCellValue(r.Locker1FClothes ?? string.Empty);
+                    row.CreateCell(5).SetCellValue(r.Locker1FShoe ?? string.Empty);
+                    row.CreateCell(6).SetCellValue(r.Locker2FClothes ?? string.Empty);
+                    row.CreateCell(7).SetCellValue(r.Locker2FShoe ?? string.Empty);
+                    row.CreateCell(8).SetCellValue(r.Error ?? string.Empty);
+                }
+
+                workbook.Write(fs);
+            }
+        }
+    }
+
+    public class ImportFailureRow
+    {
+        public int RowNumber { get; set; }
+        public string EmpNo { get; set; }
+        public string Name { get; set; }
+        public string Process { get; set; }
+        public string Locker1FClothes { get; set; }
+        public string Locker1FShoe { get; set; }
+        public string Locker2FClothes { get; set; }
+        public string Locker2FShoe { get; set; }
+        public string Error { get; set; }
+
+        public static ImportFailureRow Create(int rowNumber, string[] cells, string error)
+        {
+            return new ImportFailureRow
+            {
+                RowNumber = rowNumber,
+                EmpNo = Cell(cells, 0),
+                Name = Cell(cells, 1),
+                Process = Cell(cells, 2),
+                Locker1FClothes = Cell(cells, 3),
+                Locker1FShoe = Cell(cells, 4),
+                Locker2FClothes = Cell(cells, 5),
+                Locker2FShoe = Cell(cells, 6),
+                Error = error
+            };
+        }
+
+        private static string Cell(string[] cells, int index)
+        {
+            if (cells == null || index < 0 || index >= cells.Length)
+            {
+                return string.Empty;
+            }
+
+            return cells[index] ?? string.Empty;
         }
     }
 }

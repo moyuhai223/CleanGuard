@@ -66,6 +66,12 @@ CREATE TABLE IF NOT EXISTS T_SystemLog (
     LogTime DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS T_SystemConfig (
+    ConfigKey TEXT PRIMARY KEY,
+    ConfigValue TEXT,
+    UpdatedTime DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS T_LockerSnapshot (
     SnapshotID INTEGER PRIMARY KEY AUTOINCREMENT,
     SnapshotTime DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -83,6 +89,8 @@ CREATE TABLE IF NOT EXISTS T_LockerSnapshot (
 
             EnsureColumnExists("T_Emp_Items", "ItemCode", "TEXT");
             EnsureColumnExists("T_Emp_Items", "ItemCondition", "TEXT");
+
+            SeedDefaultConfig();
 
             SeedDefaultLockers();
             CaptureLockerSnapshot("Startup");
@@ -479,6 +487,39 @@ GROUP BY Location, Type;";
             }
 
             return summary;
+        }
+
+        public static Dictionary<string, int> GetItemCategoryLimits()
+        {
+            var limits = new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                { "无尘服", 10 },
+                { "安全鞋", 5 },
+                { "帆布鞋", 5 },
+                { "洁净帽", 10 }
+            };
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = "SELECT ConfigKey, ConfigValue FROM T_SystemConfig WHERE ConfigKey LIKE 'ItemLimit.%'";
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string key = Convert.ToString(reader["ConfigKey"]);
+                        string category = key.Replace("ItemLimit.", string.Empty);
+                        int value;
+                        if (int.TryParse(Convert.ToString(reader["ConfigValue"]), out value) && value > 0)
+                        {
+                            limits[category] = value;
+                        }
+                    }
+                }
+            }
+
+            return limits;
         }
 
         public static List<LockerHeatBlock> GetLockerHeatBlocks(string floor)
@@ -1222,6 +1263,17 @@ VALUES (@LockerID, @Location, @Type, 0)";
         private static object NormalizeNull(string input)
         {
             return string.IsNullOrWhiteSpace(input) ? (object)DBNull.Value : input.Trim();
+        }
+
+        private static void SeedDefaultConfig()
+        {
+            ExecuteNonQuery(@"
+INSERT OR IGNORE INTO T_SystemConfig (ConfigKey, ConfigValue) VALUES
+('ItemLimit.无尘服', '10'),
+('ItemLimit.安全鞋', '5'),
+('ItemLimit.帆布鞋', '5'),
+('ItemLimit.洁净帽', '10');
+");
         }
 
         private static int GetLockerRegionIndex(string lockerId)
