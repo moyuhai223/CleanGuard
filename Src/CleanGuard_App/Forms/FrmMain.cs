@@ -19,6 +19,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnLockerMap = new Button();
         private readonly Button _btnImport = new Button();
         private readonly Button _btnLogs = new Button();
+        private readonly Button _btnProcessDict = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
         public FrmMain()
@@ -73,21 +74,26 @@ namespace CleanGuard_App.Forms
             Controls.Add(_btnPrintLabel);
 
             _btnImport.Text = "数据导入";
-            _btnImport.SetBounds(910, 20, 100, 30);
+            _btnImport.SetBounds(910, 20, 90, 30);
             _btnImport.Click += (s, e) => OpenImportForm();
             Controls.Add(_btnImport);
 
             _btnLockerMap.Text = "柜位分布图";
-            _btnLockerMap.SetBounds(1020, 20, 120, 30);
+            _btnLockerMap.SetBounds(1010, 20, 110, 30);
             _btnLockerMap.Click += (s, e) => OpenLockerChart();
             Controls.Add(_btnLockerMap);
 
             _btnLogs.Text = "系统日志";
-            _btnLogs.SetBounds(1150, 20, 90, 30);
+            _btnLogs.SetBounds(1130, 20, 70, 30);
             _btnLogs.Click += (s, e) => OpenSystemLogs();
             Controls.Add(_btnLogs);
 
-            _grid.SetBounds(20, 70, 1220, 590);
+            _btnProcessDict.Text = "工序字典";
+            _btnProcessDict.SetBounds(1210, 20, 70, 30);
+            _btnProcessDict.Click += (s, e) => OpenProcessDict();
+            Controls.Add(_btnProcessDict);
+
+            _grid.SetBounds(20, 70, 1260, 590);
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -327,6 +333,17 @@ namespace CleanGuard_App.Forms
             {
                 form.ShowDialog(this);
             }
+        }
+
+
+        private void OpenProcessDict()
+        {
+            using (var form = new FrmProcessManage())
+            {
+                form.ShowDialog(this);
+            }
+
+            LoadEmployeeData(_txtSearch.Text.Trim());
         }
     }
 }

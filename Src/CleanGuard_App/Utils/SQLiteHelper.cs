@@ -129,6 +129,91 @@ ORDER BY Status DESC, Name;";
             return list.ToArray();
         }
 
+        public static DataTable QueryProcessesTable()
+        {
+            var table = new DataTable();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            using (var adapter = new SQLiteDataAdapter(cmd))
+            {
+                conn.Open();
+                cmd.CommandText = @"SELECT ID AS 编号, Name AS 工序名称 FROM T_Process ORDER BY ID";
+                adapter.Fill(table);
+            }
+
+            return table;
+        }
+
+        public static void AddProcess(string processName)
+        {
+            if (string.IsNullOrWhiteSpace(processName))
+            {
+                throw new ArgumentException("工序名称不能为空。");
+            }
+
+            string name = processName.Trim();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = "INSERT INTO T_Process(Name) VALUES(@Name)";
+                cmd.Parameters.AddWithValue("@Name", name);
+                try
+                {
+                    cmd.ExecuteNonQuery();
+                }
+                catch (SQLiteException ex)
+                {
+                    if (ex.ResultCode == SQLiteErrorCode.Constraint)
+                    {
+                        throw new InvalidOperationException("工序已存在，不能重复新增。");
+                    }
+
+                    throw;
+                }
+            }
+
+            WriteSystemLog("Employee", "新增工序字典: " + name);
+        }
+
+        public static void DeleteProcess(string processName)
+        {
+            if (string.IsNullOrWhiteSpace(processName))
+            {
+                throw new ArgumentException("工序名称不能为空。");
+            }
+
+            string name = processName.Trim();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+
+                using (var check = conn.CreateCommand())
+                {
+                    check.CommandText = "SELECT COUNT(1) FROM T_Employee WHERE Process = @Name";
+                    check.Parameters.AddWithValue("@Name", name);
+                    int used = Convert.ToInt32(check.ExecuteScalar());
+                    if (used > 0)
+                    {
+                        throw new InvalidOperationException("该工序正在被员工使用，无法删除。");
+                    }
+                }
+
+                using (var del = conn.CreateCommand())
+                {
+                    del.CommandText = "DELETE FROM T_Process WHERE Name = @Name";
+                    del.Parameters.AddWithValue("@Name", name);
+                    int affected = del.ExecuteNonQuery();
+                    if (affected <= 0)
+                    {
+                        throw new InvalidOperationException("未找到该工序，无法删除。");
+                    }
+                }
+            }
+
+            WriteSystemLog("Employee", "删除工序字典: " + name);
+        }
+
         public static string[] GetAvailableLockers(string location, string type)
         {
             var list = new List<string>();
