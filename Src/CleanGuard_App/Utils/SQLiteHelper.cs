@@ -565,6 +565,98 @@ LIMIT @limit;";
             return table;
         }
 
+        public static List<EmployeeItemInput> GetEmployeeItems(string empNo)
+        {
+            var list = new List<EmployeeItemInput>();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = @"SELECT I.Category, I.SlotIndex, I.Size, I.IssueDate
+FROM T_Emp_Items I
+INNER JOIN T_Employee E ON E.ID = I.EmpID
+WHERE E.EmpNo = @EmpNo
+ORDER BY I.Category, I.SlotIndex";
+                cmd.Parameters.AddWithValue("@EmpNo", empNo);
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        list.Add(new EmployeeItemInput
+                        {
+                            Category = reader["Category"].ToString(),
+                            SlotIndex = Convert.ToInt32(reader["SlotIndex"]),
+                            Size = reader["Size"].ToString(),
+                            IssueDate = reader["IssueDate"].ToString()
+                        });
+                    }
+                }
+            }
+
+            return list;
+        }
+
+        public static void ReplaceEmployeeItems(string empNo, List<EmployeeItemInput> items)
+        {
+            if (string.IsNullOrWhiteSpace(empNo))
+            {
+                throw new ArgumentException("工号不能为空。", "empNo");
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var tx = conn.BeginTransaction())
+                {
+                    int empId;
+                    using (var findCmd = conn.CreateCommand())
+                    {
+                        findCmd.Transaction = tx;
+                        findCmd.CommandText = "SELECT ID FROM T_Employee WHERE EmpNo = @EmpNo";
+                        findCmd.Parameters.AddWithValue("@EmpNo", empNo);
+                        object id = findCmd.ExecuteScalar();
+                        if (id == null || id == DBNull.Value)
+                        {
+                            throw new InvalidOperationException("未找到员工，无法保存劳保用品。");
+                        }
+
+                        empId = Convert.ToInt32(id);
+                    }
+
+                    using (var delCmd = conn.CreateCommand())
+                    {
+                        delCmd.Transaction = tx;
+                        delCmd.CommandText = "DELETE FROM T_Emp_Items WHERE EmpID = @EmpID";
+                        delCmd.Parameters.AddWithValue("@EmpID", empId);
+                        delCmd.ExecuteNonQuery();
+                    }
+
+                    if (items != null)
+                    {
+                        foreach (var item in items)
+                        {
+                            using (var insertCmd = conn.CreateCommand())
+                            {
+                                insertCmd.Transaction = tx;
+                                insertCmd.CommandText = @"INSERT INTO T_Emp_Items(EmpID, Category, SlotIndex, Size, IssueDate)
+VALUES (@EmpID, @Category, @SlotIndex, @Size, @IssueDate)";
+                                insertCmd.Parameters.AddWithValue("@EmpID", empId);
+                                insertCmd.Parameters.AddWithValue("@Category", item.Category ?? string.Empty);
+                                insertCmd.Parameters.AddWithValue("@SlotIndex", item.SlotIndex);
+                                insertCmd.Parameters.AddWithValue("@Size", NormalizeNull(item.Size));
+                                insertCmd.Parameters.AddWithValue("@IssueDate", NormalizeNull(item.IssueDate));
+                                insertCmd.ExecuteNonQuery();
+                            }
+                        }
+                    }
+
+                    tx.Commit();
+                }
+            }
+
+            WriteSystemLog("Employee", $"更新劳保用品信息: {empNo}, 数量={(items == null ? 0 : items.Count)}");
+        }
+
         public static void WriteSystemLog(string logType, string message)
         {
             ExecuteNonQuery("INSERT INTO T_SystemLog (LogType, Message) VALUES (@type, @message)",
@@ -696,6 +788,14 @@ VALUES (@LockerID, @Location, @Type, 0)";
         public string Locker2FClothes { get; set; }
         public string Locker2FShoe { get; set; }
         public int Status { get; set; }
+    }
+
+    public class EmployeeItemInput
+    {
+        public string Category { get; set; }
+        public int SlotIndex { get; set; }
+        public string Size { get; set; }
+        public string IssueDate { get; set; }
     }
 
     public class EmployeeLockerInfo
