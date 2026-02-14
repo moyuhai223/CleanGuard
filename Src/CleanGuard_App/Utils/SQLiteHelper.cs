@@ -522,6 +522,44 @@ GROUP BY Location, Type;";
             return limits;
         }
 
+        public static void SaveItemCategoryLimits(Dictionary<string, int> limits)
+        {
+            if (limits == null)
+            {
+                throw new ArgumentNullException("limits");
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var tx = conn.BeginTransaction())
+                {
+                    foreach (var pair in limits)
+                    {
+                        if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value <= 0)
+                        {
+                            continue;
+                        }
+
+                        using (var cmd = conn.CreateCommand())
+                        {
+                            cmd.Transaction = tx;
+                            cmd.CommandText = @"INSERT INTO T_SystemConfig(ConfigKey, ConfigValue, UpdatedTime)
+VALUES(@Key, @Value, CURRENT_TIMESTAMP)
+ON CONFLICT(ConfigKey) DO UPDATE SET ConfigValue = excluded.ConfigValue, UpdatedTime = CURRENT_TIMESTAMP;";
+                            cmd.Parameters.AddWithValue("@Key", "ItemLimit." + pair.Key.Trim());
+                            cmd.Parameters.AddWithValue("@Value", pair.Value.ToString());
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+
+                    tx.Commit();
+                }
+            }
+
+            WriteSystemLog("Employee", "更新用品类别上限配置");
+        }
+
         public static List<LockerHeatBlock> GetLockerHeatBlocks(string floor)
         {
             var rawRows = new List<LockerHeatBlockRaw>();

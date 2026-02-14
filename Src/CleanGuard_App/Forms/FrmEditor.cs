@@ -17,6 +17,7 @@ namespace CleanGuard_App.Forms
         private readonly ComboBox _cmb2FClothes = new ComboBox();
         private readonly ComboBox _cmb2FShoe = new ComboBox();
         private readonly Button _btnSave = new Button();
+        private readonly Button _btnLimitSettings = new Button();
 
         private readonly Dictionary<string, DataGridView> _itemGrids = new Dictionary<string, DataGridView>();
         private readonly Dictionary<string, int> _categoryLimits = new Dictionary<string, int>
@@ -102,6 +103,11 @@ namespace CleanGuard_App.Forms
             _btnSave.SetBounds(790, 650, 100, 30);
             _btnSave.Click += (s, e) => SaveEmployee();
             Controls.Add(_btnSave);
+
+            _btnLimitSettings.Text = "用品上限设置";
+            _btnLimitSettings.SetBounds(670, 650, 110, 30);
+            _btnLimitSettings.Click += (s, e) => OpenLimitSettingsDialog();
+            Controls.Add(_btnLimitSettings);
         }
 
         private void BuildDynamicItemPanel(TabPage tab, string category)
@@ -675,6 +681,69 @@ namespace CleanGuard_App.Forms
             }
 
             return "42,新," + DateTime.Now.ToString("yyyy-MM-dd");
+        }
+
+        private void OpenLimitSettingsDialog()
+        {
+            using (var dialog = new Form())
+            {
+                dialog.Text = "用品上限设置";
+                dialog.Width = 360;
+                dialog.Height = 290;
+                dialog.StartPosition = FormStartPosition.CenterParent;
+
+                var labels = new[] { "无尘服", "安全鞋", "帆布鞋", "洁净帽" };
+                var inputs = new Dictionary<string, NumericUpDown>();
+                int top = 20;
+                foreach (var name in labels)
+                {
+                    var lbl = new Label { Left = 20, Top = top + 5, Width = 90, Text = name };
+                    var num = new NumericUpDown
+                    {
+                        Left = 120,
+                        Top = top,
+                        Width = 120,
+                        Minimum = 1,
+                        Maximum = 999,
+                        Value = GetCategoryLimit(name)
+                    };
+
+                    dialog.Controls.Add(lbl);
+                    dialog.Controls.Add(num);
+                    inputs[name] = num;
+                    top += 40;
+                }
+
+                var btnSave = new Button { Left = 150, Top = top + 10, Width = 90, Height = 30, Text = "保存" };
+                var btnCancel = new Button { Left = 250, Top = top + 10, Width = 70, Height = 30, Text = "取消" };
+                btnCancel.Click += (s, e) => dialog.DialogResult = DialogResult.Cancel;
+                btnSave.Click += (s, e) =>
+                {
+                    var limits = new Dictionary<string, int>(StringComparer.Ordinal)
+                    {
+                        { "无尘服", Convert.ToInt32(inputs["无尘服"].Value) },
+                        { "安全鞋", Convert.ToInt32(inputs["安全鞋"].Value) },
+                        { "帆布鞋", Convert.ToInt32(inputs["帆布鞋"].Value) },
+                        { "洁净帽", Convert.ToInt32(inputs["洁净帽"].Value) }
+                    };
+
+                    try
+                    {
+                        SQLiteHelper.SaveItemCategoryLimits(limits);
+                        LoadCategoryLimits();
+                        MessageBox.Show("用品上限已保存。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        dialog.DialogResult = DialogResult.OK;
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(ex.Message, "保存失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                };
+
+                dialog.Controls.Add(btnSave);
+                dialog.Controls.Add(btnCancel);
+                dialog.ShowDialog(this);
+            }
         }
 
         private class ItemImportPreviewRow
