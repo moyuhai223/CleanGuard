@@ -87,8 +87,8 @@ namespace CleanGuard_App.Utils
             }
 
             using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-            using (var workbook = new XSSFWorkbook(fs))
             {
+                var workbook = new XSSFWorkbook(fs);
                 ISheet sheet = workbook.NumberOfSheets > 0 ? workbook.GetSheetAt(0) : null;
                 if (sheet == null)
                 {
@@ -123,16 +123,14 @@ namespace CleanGuard_App.Utils
 
         public static void ExportTemplateXlsx(string filePath)
         {
-            using (var workbook = new XSSFWorkbook())
+            var workbook = new XSSFWorkbook();
+            using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
             {
                 ISheet sheet = workbook.CreateSheet("导入模板");
                 WriteCellsToRow(sheet.CreateRow(0), TemplateHeaders);
                 WriteCellsToRow(sheet.CreateRow(1), new[] { "P001", "张三", "热切", "1F-C-01", "1F-S-01", "2F-C-01", "2F-S-01", "L", "42" });
 
-                using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
-                {
-                    workbook.Write(fs);
-                }
+                workbook.Write(fs);
             }
         }
 
@@ -329,7 +327,8 @@ namespace CleanGuard_App.Utils
 
         public void ExportErrorsXlsx(string filePath)
         {
-            using (var workbook = new XSSFWorkbook())
+            var workbook = new XSSFWorkbook();
+            using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
             {
                 ISheet sheet = workbook.CreateSheet("失败明细");
                 var header = sheet.CreateRow(0);
@@ -343,10 +342,7 @@ namespace CleanGuard_App.Utils
                     row.CreateCell(1).SetCellValue(Errors[i] ?? string.Empty);
                 }
 
-                using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
-                {
-                    workbook.Write(fs);
-                }
+                workbook.Write(fs);
             }
         }
 
