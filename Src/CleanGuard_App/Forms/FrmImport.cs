@@ -61,6 +61,11 @@ namespace CleanGuard_App.Forms
             Controls.Add(_btnCopyErrors);
             UiTheme.StylePrimaryButton(_btnCopyErrors);
 
+            _btnCopyErrors.Text = "复制错误信息";
+            _btnCopyErrors.SetBounds(490, 20, 130, 30);
+            _btnCopyErrors.Click += (s, e) => CopyErrors();
+            Controls.Add(_btnCopyErrors);
+
             _btnRefreshLogs.Text = "刷新导入日志";
             _btnRefreshLogs.SetBounds(630, 20, 130, 30);
             _btnRefreshLogs.Click += (s, e) => LoadImportLogs();
@@ -150,6 +155,17 @@ namespace CleanGuard_App.Forms
                 _lastResult.ExportErrors(dialog.FileName);
                 MessageBox.Show("回填模板已导出，可修正后再次导入。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+
+            string text = string.Join(Environment.NewLine, _lastResult.Errors);
+            Clipboard.SetText(text);
+            MessageBox.Show("错误信息已复制到剪贴板。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void UpdateActionState()
+        {
+            bool hasErrors = _lastResult != null && _lastResult.Errors.Any();
+            _btnExportErrors.Enabled = hasErrors;
+            _btnCopyErrors.Enabled = hasErrors;
         }
 
         private void CopyErrors()
