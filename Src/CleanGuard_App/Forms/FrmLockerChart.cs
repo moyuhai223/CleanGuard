@@ -26,6 +26,8 @@ namespace CleanGuard_App.Forms
             Height = 620;
             StartPosition = FormStartPosition.CenterParent;
 
+            UiTheme.ApplyFormStyle(this);
+
             InitializeLayout();
             LoadData();
         }
@@ -42,16 +44,19 @@ namespace CleanGuard_App.Forms
             _btnRefresh.SetBounds(130, 15, 80, 28);
             _btnRefresh.Click += (s, e) => LoadData();
             Controls.Add(_btnRefresh);
+            UiTheme.StylePrimaryButton(_btnRefresh);
 
             _btnExportImage.Text = "导出图片";
             _btnExportImage.SetBounds(220, 15, 100, 28);
             _btnExportImage.Click += (s, e) => ExportChartImage();
             Controls.Add(_btnExportImage);
+            UiTheme.StylePrimaryButton(_btnExportImage);
 
             _btnTrend.Text = "占用趋势";
             _btnTrend.SetBounds(330, 15, 100, 28);
             _btnTrend.Click += (s, e) => OpenTrend();
             Controls.Add(_btnTrend);
+            UiTheme.StylePrimaryButton(_btnTrend);
 
             _chart.SetBounds(20, 55, 840, 420);
             _chart.ChartAreas.Add(new ChartArea("MainArea"));

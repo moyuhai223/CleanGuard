@@ -29,6 +29,8 @@ namespace CleanGuard_App.Forms
             Height = 720;
             StartPosition = FormStartPosition.CenterScreen;
 
+            UiTheme.ApplyFormStyle(this);
+
             InitializeLayout();
             LoadEmployeeData();
         }
@@ -42,56 +44,67 @@ namespace CleanGuard_App.Forms
             _btnSearch.SetBounds(230, 20, 70, 30);
             _btnSearch.Click += (s, e) => LoadEmployeeData(_txtSearch.Text.Trim());
             Controls.Add(_btnSearch);
+            UiTheme.StylePrimaryButton(_btnSearch);
 
             _btnAdd.Text = "新增员工";
             _btnAdd.SetBounds(310, 20, 90, 30);
             _btnAdd.Click += (s, e) => OpenEditor();
             Controls.Add(_btnAdd);
+            UiTheme.StylePrimaryButton(_btnAdd);
 
             _btnEdit.Text = "编辑员工";
             _btnEdit.SetBounds(410, 20, 90, 30);
             _btnEdit.Click += (s, e) => OpenEditorForSelected();
             Controls.Add(_btnEdit);
+            UiTheme.StylePrimaryButton(_btnEdit);
 
             _btnResign.Text = "办理离职";
             _btnResign.SetBounds(510, 20, 90, 30);
             _btnResign.Click += (s, e) => ResignSelectedEmployee();
             Controls.Add(_btnResign);
+            UiTheme.StyleWarningButton(_btnResign);
 
             _btnRestore.Text = "办理复职";
             _btnRestore.SetBounds(610, 20, 90, 30);
             _btnRestore.Click += (s, e) => RestoreSelectedEmployee();
             Controls.Add(_btnRestore);
+            UiTheme.StylePrimaryButton(_btnRestore);
 
             _btnDelete.Text = "删除员工";
             _btnDelete.SetBounds(710, 20, 90, 30);
             _btnDelete.Click += (s, e) => DeleteSelectedEmployee();
             Controls.Add(_btnDelete);
+            UiTheme.StyleWarningButton(_btnDelete);
 
             _btnPrintLabel.Text = "打印标签";
             _btnPrintLabel.SetBounds(810, 20, 90, 30);
             _btnPrintLabel.Click += (s, e) => PrintSelectedEmployeeLabel();
             Controls.Add(_btnPrintLabel);
+            UiTheme.StylePrimaryButton(_btnPrintLabel);
 
             _btnImport.Text = "数据导入";
             _btnImport.SetBounds(910, 20, 90, 30);
             _btnImport.Click += (s, e) => OpenImportForm();
             Controls.Add(_btnImport);
+            UiTheme.StylePrimaryButton(_btnImport);
 
             _btnLockerMap.Text = "柜位分布图";
             _btnLockerMap.SetBounds(1010, 20, 110, 30);
             _btnLockerMap.Click += (s, e) => OpenLockerChart();
             Controls.Add(_btnLockerMap);
+            UiTheme.StylePrimaryButton(_btnLockerMap);
 
             _btnLogs.Text = "系统日志";
             _btnLogs.SetBounds(1130, 20, 70, 30);
             _btnLogs.Click += (s, e) => OpenSystemLogs();
             Controls.Add(_btnLogs);
+            UiTheme.StylePrimaryButton(_btnLogs);
 
             _btnProcessDict.Text = "工序字典";
             _btnProcessDict.SetBounds(1210, 20, 70, 30);
             _btnProcessDict.Click += (s, e) => OpenProcessDict();
             Controls.Add(_btnProcessDict);
+            UiTheme.StylePrimaryButton(_btnProcessDict);
 
             _grid.SetBounds(20, 70, 1260, 590);
             _grid.ReadOnly = true;
@@ -101,6 +114,7 @@ namespace CleanGuard_App.Forms
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             _grid.CellDoubleClick += (s, e) => OpenEditorForSelected();
             Controls.Add(_grid);
+            UiTheme.StyleDataGrid(_grid);
         }
 
         private void LoadEmployeeData(string keyword = "")

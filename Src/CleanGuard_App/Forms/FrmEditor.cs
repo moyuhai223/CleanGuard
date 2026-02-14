@@ -33,6 +33,8 @@ namespace CleanGuard_App.Forms
             Height = 730;
             StartPosition = FormStartPosition.CenterParent;
 
+            UiTheme.ApplyFormStyle(this);
+
             InitializeLayout();
             LoadCategoryLimits();
             LoadData();
@@ -103,11 +105,13 @@ namespace CleanGuard_App.Forms
             _btnSave.SetBounds(790, 650, 100, 30);
             _btnSave.Click += (s, e) => SaveEmployee();
             Controls.Add(_btnSave);
+            UiTheme.StylePrimaryButton(_btnSave);
 
             _btnLimitSettings.Text = "用品上限设置";
             _btnLimitSettings.SetBounds(670, 650, 110, 30);
             _btnLimitSettings.Click += (s, e) => OpenLimitSettingsDialog();
             Controls.Add(_btnLimitSettings);
+            UiTheme.StylePrimaryButton(_btnLimitSettings);
         }
 
         private void BuildDynamicItemPanel(TabPage tab, string category)
@@ -173,6 +177,12 @@ namespace CleanGuard_App.Forms
             tab.Controls.Add(btnTemplate);
             tab.Controls.Add(btnImport);
             tab.Controls.Add(grid);
+            UiTheme.StylePrimaryButton(btnAdd);
+            UiTheme.StyleWarningButton(btnRemove);
+            UiTheme.StylePrimaryButton(btnPaste);
+            UiTheme.StylePrimaryButton(btnTemplate);
+            UiTheme.StylePrimaryButton(btnImport);
+            UiTheme.StyleDataGrid(grid);
             _itemGrids[category] = grid;
         }
 

@@ -80,6 +80,7 @@
     <Compile Include="Utils\PinYin.cs" />
     <Compile Include="Utils\ImportHelper.cs" />
     <Compile Include="Utils\Printer.cs" />
+    <Compile Include="Utils\UiTheme.cs" />
   </ItemGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

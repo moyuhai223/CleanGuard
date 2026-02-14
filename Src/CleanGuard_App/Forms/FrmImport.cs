@@ -28,6 +28,8 @@ namespace CleanGuard_App.Forms
             Height = 620;
             StartPosition = FormStartPosition.CenterParent;
 
+            UiTheme.ApplyFormStyle(this);
+
             InitializeLayout();
             LoadImportLogs();
             UpdateActionState();
@@ -39,16 +41,25 @@ namespace CleanGuard_App.Forms
             _btnDownloadTemplate.SetBounds(20, 20, 170, 30);
             _btnDownloadTemplate.Click += (s, e) => DownloadTemplate();
             Controls.Add(_btnDownloadTemplate);
+            UiTheme.StylePrimaryButton(_btnDownloadTemplate);
 
             _btnImportFile.Text = "选择文件并导入";
             _btnImportFile.SetBounds(200, 20, 140, 30);
             _btnImportFile.Click += (s, e) => ImportFile();
             Controls.Add(_btnImportFile);
+            UiTheme.StylePrimaryButton(_btnImportFile);
 
             _btnExportErrors.Text = "导出回填模板";
             _btnExportErrors.SetBounds(350, 20, 130, 30);
             _btnExportErrors.Click += (s, e) => ExportErrors();
             Controls.Add(_btnExportErrors);
+            UiTheme.StylePrimaryButton(_btnExportErrors);
+
+            _btnCopyErrors.Text = "复制错误信息";
+            _btnCopyErrors.SetBounds(490, 20, 130, 30);
+            _btnCopyErrors.Click += (s, e) => CopyErrors();
+            Controls.Add(_btnCopyErrors);
+            UiTheme.StylePrimaryButton(_btnCopyErrors);
 
             _btnCopyErrors.Text = "复制错误信息";
             _btnCopyErrors.SetBounds(490, 20, 130, 30);
@@ -59,6 +70,7 @@ namespace CleanGuard_App.Forms
             _btnRefreshLogs.SetBounds(630, 20, 130, 30);
             _btnRefreshLogs.Click += (s, e) => LoadImportLogs();
             Controls.Add(_btnRefreshLogs);
+            UiTheme.StylePrimaryButton(_btnRefreshLogs);
 
             _txtResult.SetBounds(20, 70, 920, 130);
             _txtResult.Multiline = true;
@@ -75,12 +87,14 @@ namespace CleanGuard_App.Forms
             _gridFailurePreview.AllowUserToAddRows = false;
             _gridFailurePreview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             Controls.Add(_gridFailurePreview);
+            UiTheme.StyleDataGrid(_gridFailurePreview);
 
             _gridLogs.SetBounds(20, 395, 920, 165);
             _gridLogs.ReadOnly = true;
             _gridLogs.AllowUserToAddRows = false;
             _gridLogs.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             Controls.Add(_gridLogs);
+            UiTheme.StyleDataGrid(_gridLogs);
         }
 
         private void DownloadTemplate()
@@ -141,6 +155,17 @@ namespace CleanGuard_App.Forms
                 _lastResult.ExportErrors(dialog.FileName);
                 MessageBox.Show("回填模板已导出，可修正后再次导入。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+
+            string text = string.Join(Environment.NewLine, _lastResult.Errors);
+            Clipboard.SetText(text);
+            MessageBox.Show("错误信息已复制到剪贴板。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void UpdateActionState()
+        {
+            bool hasErrors = _lastResult != null && _lastResult.Errors.Any();
+            _btnExportErrors.Enabled = hasErrors;
+            _btnCopyErrors.Enabled = hasErrors;
         }
 
         private void CopyErrors()
