@@ -18,6 +18,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnRefresh = new Button();
         private readonly Button _btnClearFilters = new Button();
         private readonly Button _btnExport = new Button();
+        private readonly Button _btnCopy = new Button();
         private readonly DataGridView _grid = new DataGridView();
         private readonly Label _lblStats = new Label();
 
@@ -92,16 +93,25 @@ namespace CleanGuard_App.Forms
             _btnExport.Click += (s, e) => ExportCsv();
             Controls.Add(_btnExport);
 
+            _btnCopy.Text = "复制选中";
+            _btnCopy.SetBounds(300, 530, 90, 28);
+            _btnCopy.Click += (s, e) => CopySelected();
+            Controls.Add(_btnCopy);
+
             _grid.SetBounds(20, 90, 1120, 430);
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            _grid.MultiSelect = false;
             _grid.RowPrePaint += (s, e) => ApplyRowStyleByOperation(e.RowIndex);
             Controls.Add(_grid);
 
             _lblStats.SetBounds(20, 66, 1120, 20);
             _lblStats.Text = "当前结果：0";
             Controls.Add(_lblStats);
+
+            Controls.Add(new Label { Text = "色标：新增=浅绿 删除=浅红 重命名=浅蓝 批量导入=浅黄", Left = 420, Top = 535, Width = 500 });
         }
 
         private void LoadLogs()
@@ -236,6 +246,24 @@ namespace CleanGuard_App.Forms
             if (opType == "重命名") return "内容 LIKE '重命名工序字典:%'";
             if (opType == "批量导入") return "内容 LIKE '工序批量导入完成%'";
             return string.Empty;
+        }
+
+
+        private void CopySelected()
+        {
+            if (_grid.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("请先选择一条审计记录。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var row = _grid.SelectedRows[0];
+            string type = Convert.ToString(row.Cells["类型"].Value);
+            string message = Convert.ToString(row.Cells["内容"].Value);
+            string time = Convert.ToString(row.Cells["时间"].Value);
+            string content = string.Format("[{0}] {1}: {2}", time, type, message);
+            Clipboard.SetText(content ?? string.Empty);
+            MessageBox.Show("已复制当前审计记录。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void ExportCsv()
