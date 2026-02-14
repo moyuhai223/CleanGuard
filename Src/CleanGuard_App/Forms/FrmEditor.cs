@@ -16,15 +16,16 @@ namespace CleanGuard_App.Forms
         private readonly ComboBox _cmb2FShoe = new ComboBox();
         private readonly Button _btnSave = new Button();
 
-        private readonly List<ItemSlotControl> _itemSlots = new List<ItemSlotControl>();
+        private readonly Dictionary<string, DataGridView> _itemGrids = new Dictionary<string, DataGridView>();
+        private readonly string[] _categories = { "无尘服", "安全鞋", "帆布鞋", "洁净帽" };
         private readonly string _editingEmpNo;
 
         public FrmEditor(string editingEmpNo = null)
         {
             _editingEmpNo = editingEmpNo;
             Text = string.IsNullOrWhiteSpace(_editingEmpNo) ? "员工录入" : "员工编辑";
-            Width = 900;
-            Height = 700;
+            Width = 930;
+            Height = 730;
             StartPosition = FormStartPosition.CenterParent;
 
             InitializeLayout();
@@ -33,7 +34,7 @@ namespace CleanGuard_App.Forms
 
         private void InitializeLayout()
         {
-            var grpBase = new GroupBox { Text = "基本信息", Left = 20, Top = 20, Width = 840, Height = 130 };
+            var grpBase = new GroupBox { Text = "基本信息", Left = 20, Top = 20, Width = 870, Height = 130 };
 
             var lblEmpNo = new Label { Text = "工号", Left = 20, Top = 35, Width = 80 };
             _txtEmpNo.SetBounds(100, 30, 180, 28);
@@ -54,7 +55,7 @@ namespace CleanGuard_App.Forms
             grpBase.Controls.Add(_cmbProcess);
             Controls.Add(grpBase);
 
-            var grp1F = new GroupBox { Text = "一楼柜位配置 (1F)", Left = 20, Top = 170, Width = 840, Height = 100 };
+            var grp1F = new GroupBox { Text = "一楼柜位配置 (1F)", Left = 20, Top = 170, Width = 870, Height = 100 };
             grp1F.Controls.Add(new Label { Text = "衣柜", Left = 20, Top = 42, Width = 50 });
             _cmb1FClothes.SetBounds(70, 38, 180, 28);
             grp1F.Controls.Add(_cmb1FClothes);
@@ -64,7 +65,7 @@ namespace CleanGuard_App.Forms
             grp1F.Controls.Add(_cmb1FShoe);
             Controls.Add(grp1F);
 
-            var grp2F = new GroupBox { Text = "二楼柜位配置 (2F)", Left = 20, Top = 290, Width = 840, Height = 100 };
+            var grp2F = new GroupBox { Text = "二楼柜位配置 (2F)", Left = 20, Top = 290, Width = 870, Height = 100 };
             grp2F.Controls.Add(new Label { Text = "衣柜", Left = 20, Top = 42, Width = 50 });
             _cmb2FClothes.SetBounds(70, 38, 180, 28);
             grp2F.Controls.Add(_cmb2FClothes);
@@ -74,63 +75,74 @@ namespace CleanGuard_App.Forms
             grp2F.Controls.Add(_cmb2FShoe);
             Controls.Add(grp2F);
 
-            var tabItems = new TabControl { Left = 20, Top = 410, Width = 840, Height = 200 };
-            var tabDustSuit = new TabPage("无尘服");
-            var tabShoes = new TabPage("鞋类");
-            var tabHat = new TabPage("帽子");
-            tabItems.TabPages.Add(tabDustSuit);
-            tabItems.TabPages.Add(tabShoes);
-            tabItems.TabPages.Add(tabHat);
+            var tabItems = new TabControl { Left = 20, Top = 410, Width = 870, Height = 230 };
+            foreach (string category in _categories)
+            {
+                var tab = new TabPage(category);
+                BuildDynamicItemPanel(tab, category);
+                tabItems.TabPages.Add(tab);
+            }
             Controls.Add(tabItems);
 
-            BuildItemSlots(tabDustSuit, "无尘服", 3);
-            BuildItemSlots(tabShoes, "安全鞋", 2, 10);
-            BuildItemSlots(tabShoes, "帆布鞋", 2, 100);
-            BuildItemSlots(tabHat, "洁净帽", 3);
-
             _btnSave.Text = "保存";
-            _btnSave.SetBounds(760, 620, 100, 30);
+            _btnSave.SetBounds(790, 650, 100, 30);
             _btnSave.Click += (s, e) => SaveEmployee();
             Controls.Add(_btnSave);
         }
 
-        private void BuildItemSlots(TabPage tab, string category, int count, int topOffset = 0)
+        private void BuildDynamicItemPanel(TabPage tab, string category)
         {
-            int startTop = 15 + topOffset;
-            for (int i = 1; i <= count; i++)
+            var btnAdd = new Button { Text = "新增一行", Left = 20, Top = 12, Width = 90, Height = 26 };
+            var btnRemove = new Button { Text = "删除选中", Left = 120, Top = 12, Width = 90, Height = 26 };
+
+            var grid = new DataGridView
             {
-                var chk = new CheckBox { Text = string.Format("{0}{1}", category, i), Left = 20, Top = startTop + (i - 1) * 30, Width = 90 };
-                var txtSize = new TextBox { Left = 130, Top = startTop + (i - 1) * 30 - 2, Width = 120, Enabled = false };
-                var dtIssue = new DateTimePicker
-                {
-                    Left = 280,
-                    Top = startTop + (i - 1) * 30 - 2,
-                    Width = 140,
-                    Format = DateTimePickerFormat.Custom,
-                    CustomFormat = "yyyy-MM-dd",
-                    Enabled = false
-                };
+                Left = 20,
+                Top = 45,
+                Width = 810,
+                Height = 145,
+                AllowUserToAddRows = false,
+                ReadOnly = false,
+                MultiSelect = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
+            };
 
-                chk.CheckedChanged += (s, e) =>
-                {
-                    txtSize.Enabled = chk.Checked;
-                    dtIssue.Enabled = chk.Checked;
-                };
+            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "序号", HeaderText = "序号", ReadOnly = true, FillWeight = 20 });
+            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "尺码", HeaderText = "尺码", FillWeight = 35 });
+            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "领用日期", HeaderText = "领用日期(yyyy-MM-dd)", FillWeight = 45 });
 
-                tab.Controls.Add(chk);
-                tab.Controls.Add(new Label { Text = "尺码", Left = 110, Top = startTop + (i - 1) * 30 + 3, Width = 30 });
-                tab.Controls.Add(txtSize);
-                tab.Controls.Add(new Label { Text = "领用日期", Left = 250, Top = startTop + (i - 1) * 30 + 3, Width = 50 });
-                tab.Controls.Add(dtIssue);
+            btnAdd.Click += (s, e) => AddItemRow(grid, string.Empty, DateTime.Now.ToString("yyyy-MM-dd"));
+            btnRemove.Click += (s, e) => RemoveSelectedRow(grid);
 
-                _itemSlots.Add(new ItemSlotControl
-                {
-                    Category = category,
-                    SlotIndex = i,
-                    Check = chk,
-                    Size = txtSize,
-                    IssueDate = dtIssue
-                });
+            tab.Controls.Add(btnAdd);
+            tab.Controls.Add(btnRemove);
+            tab.Controls.Add(grid);
+            _itemGrids[category] = grid;
+        }
+
+        private static void AddItemRow(DataGridView grid, string size, string issueDate)
+        {
+            int index = grid.Rows.Count + 1;
+            grid.Rows.Add(index, size ?? string.Empty, issueDate ?? string.Empty);
+        }
+
+        private static void RemoveSelectedRow(DataGridView grid)
+        {
+            if (grid.SelectedRows.Count == 0)
+            {
+                return;
+            }
+
+            grid.Rows.RemoveAt(grid.SelectedRows[0].Index);
+            RebuildIndexes(grid);
+        }
+
+        private static void RebuildIndexes(DataGridView grid)
+        {
+            for (int i = 0; i < grid.Rows.Count; i++)
+            {
+                grid.Rows[i].Cells["序号"].Value = i + 1;
             }
         }
 
@@ -167,21 +179,22 @@ namespace CleanGuard_App.Forms
         private void LoadItemData(string empNo)
         {
             var items = SQLiteHelper.GetEmployeeItems(empNo);
-            foreach (var slot in _itemSlots)
+            foreach (var category in _categories)
             {
-                var item = items.Find(x => x.Category == slot.Category && x.SlotIndex == slot.SlotIndex);
-                if (item == null)
-                {
-                    continue;
-                }
+                DataGridView grid = _itemGrids[category];
+                grid.Rows.Clear();
 
-                slot.Check.Checked = true;
-                slot.Size.Text = item.Size;
-
-                DateTime parsed;
-                if (DateTime.TryParse(item.IssueDate, out parsed))
+                int slot = 1;
+                foreach (var item in items)
                 {
-                    slot.IssueDate.Value = parsed;
+                    if (!string.Equals(item.Category, category, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    AddItemRow(grid, item.Size, item.IssueDate);
+                    grid.Rows[grid.Rows.Count - 1].Cells["序号"].Value = slot;
+                    slot++;
                 }
             }
         }
@@ -238,20 +251,44 @@ namespace CleanGuard_App.Forms
         private List<EmployeeItemInput> BuildItemInputs()
         {
             var list = new List<EmployeeItemInput>();
-            foreach (var slot in _itemSlots)
+            foreach (var category in _categories)
             {
-                if (!slot.Check.Checked)
+                DataGridView grid = _itemGrids[category];
+                int slot = 1;
+                foreach (DataGridViewRow row in grid.Rows)
                 {
-                    continue;
-                }
+                    if (row.IsNewRow)
+                    {
+                        continue;
+                    }
 
-                list.Add(new EmployeeItemInput
-                {
-                    Category = slot.Category,
-                    SlotIndex = slot.SlotIndex,
-                    Size = string.IsNullOrWhiteSpace(slot.Size.Text) ? null : slot.Size.Text.Trim(),
-                    IssueDate = slot.IssueDate.Value.ToString("yyyy-MM-dd")
-                });
+                    string size = Convert.ToString(row.Cells["尺码"].Value);
+                    string issueDate = Convert.ToString(row.Cells["领用日期"].Value);
+                    if (!string.IsNullOrWhiteSpace(issueDate))
+                    {
+                        DateTime date;
+                        if (!DateTime.TryParse(issueDate, out date))
+                        {
+                            throw new InvalidOperationException(string.Format("{0} 第 {1} 行领用日期格式错误，请使用 yyyy-MM-dd。", category, slot));
+                        }
+
+                        issueDate = date.ToString("yyyy-MM-dd");
+                    }
+
+                    if (string.IsNullOrWhiteSpace(size) && string.IsNullOrWhiteSpace(issueDate))
+                    {
+                        continue;
+                    }
+
+                    list.Add(new EmployeeItemInput
+                    {
+                        Category = category,
+                        SlotIndex = slot,
+                        Size = string.IsNullOrWhiteSpace(size) ? null : size.Trim(),
+                        IssueDate = string.IsNullOrWhiteSpace(issueDate) ? null : issueDate
+                    });
+                    slot++;
+                }
             }
 
             return list;
@@ -269,14 +306,5 @@ namespace CleanGuard_App.Forms
         {
             comboBox.Text = string.IsNullOrWhiteSpace(value) ? string.Empty : value;
         }
-    }
-
-    public class ItemSlotControl
-    {
-        public string Category { get; set; }
-        public int SlotIndex { get; set; }
-        public CheckBox Check { get; set; }
-        public TextBox Size { get; set; }
-        public DateTimePicker IssueDate { get; set; }
     }
 }
