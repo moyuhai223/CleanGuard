@@ -30,6 +30,35 @@ namespace CleanGuard_App.Utils
             ExportTemplateCsv(filePath);
         }
 
+        public static string ExportTemplateWithFallback(string filePath, out string warningMessage)
+        {
+            warningMessage = null;
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext != ".xlsx")
+            {
+                ExportTemplateCsv(filePath);
+                return filePath;
+            }
+
+            try
+            {
+                ExportTemplateXlsx(filePath);
+                return filePath;
+            }
+            catch (Exception ex)
+            {
+                if (!IsSharpZipLibMissing(ex))
+                {
+                    throw;
+                }
+
+                string csvPath = Path.ChangeExtension(filePath, ".csv");
+                ExportTemplateCsv(csvPath);
+                warningMessage = "当前运行环境缺少 NPOI 依赖 ICSharpCode.SharpZipLib，已自动降级导出为 CSV 模板。";
+                return csvPath;
+            }
+        }
+
         public static ImportResult ImportFromFile(string filePath)
         {
             string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
@@ -55,6 +84,35 @@ namespace CleanGuard_App.Utils
             sb.AppendLine("1F-C-01,1F,衣柜,");
             sb.AppendLine("1F-S-01,1F,鞋柜,");
             File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+        }
+
+        public static string ExportLockerTemplateWithFallback(string filePath, out string warningMessage)
+        {
+            warningMessage = null;
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext != ".xlsx")
+            {
+                ExportLockerTemplate(filePath);
+                return filePath;
+            }
+
+            try
+            {
+                ExportLockerTemplateXlsx(filePath);
+                return filePath;
+            }
+            catch (Exception ex)
+            {
+                if (!IsSharpZipLibMissing(ex))
+                {
+                    throw;
+                }
+
+                string csvPath = Path.ChangeExtension(filePath, ".csv");
+                ExportLockerTemplate(csvPath);
+                warningMessage = "当前运行环境缺少 NPOI 依赖 ICSharpCode.SharpZipLib，已自动降级导出为 CSV 模板。";
+                return csvPath;
+            }
         }
 
         public static ProcessImportResult ImportLockersFromFile(string filePath)
@@ -433,6 +491,11 @@ namespace CleanGuard_App.Utils
             }
 
             return (cells[index] ?? string.Empty).Trim();
+        }
+
+        private static bool IsSharpZipLibMissing(Exception ex)
+        {
+            return ex != null && ex.ToString().IndexOf("ICSharpCode.SharpZipLib", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string[] SplitCsvLine(string line)
