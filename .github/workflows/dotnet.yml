@@ -58,6 +58,16 @@ jobs:
             Copy-Item -Path $config -Destination "$stage/CleanGuard.exe.config" -Force
           }
 
+          if (Test-Path "Output/x86/SQLite.Interop.dll") {
+            New-Item -ItemType Directory -Path "$stage/x86" -Force | Out-Null
+            Copy-Item -Path "Output/x86/SQLite.Interop.dll" -Destination "$stage/x86/SQLite.Interop.dll" -Force
+          }
+
+          if (Test-Path "Output/x64/SQLite.Interop.dll") {
+            New-Item -ItemType Directory -Path "$stage/x64" -Force | Out-Null
+            Copy-Item -Path "Output/x64/SQLite.Interop.dll" -Destination "$stage/x64/SQLite.Interop.dll" -Force
+          }
+
           $zip = "artifacts/CleanGuard-${{ matrix.rid }}.zip"
           if (Test-Path $zip) { Remove-Item $zip -Force }
           Compress-Archive -Path "$stage/*" -DestinationPath $zip
