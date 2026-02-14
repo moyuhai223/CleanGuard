@@ -214,6 +214,7 @@ ORDER BY Status DESC, Name;";
             WriteSystemLog("Employee", "删除工序字典: " + name);
         }
 
+<<<<<<< codex/start-development-based-on-documentation-2dnqub
         public static ProcessImportResult ImportProcessesFromCsv(string filePath)
         {
             var result = new ProcessImportResult();
@@ -289,6 +290,8 @@ ORDER BY Status DESC, Name;";
             return result;
         }
 
+=======
+>>>>>>> main
         public static void RenameProcess(string oldName, string newName)
         {
             if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName))
@@ -1006,6 +1009,7 @@ VALUES (@LockerID, @Location, @Type, 0)";
         }
     }
 
+<<<<<<< codex/start-development-based-on-documentation-2dnqub
     public class ProcessImportResult
     {
         public int SuccessCount { get; set; }
@@ -1019,6 +1023,8 @@ VALUES (@LockerID, @Location, @Type, 0)";
         }
     }
 
+=======
+>>>>>>> main
     public class EmployeeEditModel
     {
         public string EmpNo { get; set; }
