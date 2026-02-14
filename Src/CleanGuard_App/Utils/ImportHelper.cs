@@ -608,7 +608,6 @@ namespace CleanGuard_App.Utils
             return string.Format("第 {0} 行（工号: {1}，错误码 CG-IMP-999）：{2} 建议修复：根据提示修正对应列后重试。", rowNumber, empNo, message);
         }
 
-
         private static string[] SplitCsvLine(string line)
         {
             var values = new List<string>();

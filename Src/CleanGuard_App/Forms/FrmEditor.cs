@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using System.Windows.Forms;
 using CleanGuard_App.Utils;
 
@@ -17,6 +19,13 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnSave = new Button();
 
         private readonly Dictionary<string, DataGridView> _itemGrids = new Dictionary<string, DataGridView>();
+        private readonly Dictionary<string, int> _categoryLimits = new Dictionary<string, int>
+        {
+            { "无尘服", 10 },
+            { "安全鞋", 5 },
+            { "帆布鞋", 5 },
+            { "洁净帽", 10 }
+        };
         private readonly string[] _categories = { "无尘服", "安全鞋", "帆布鞋", "洁净帽" };
         private readonly string _editingEmpNo;
 
@@ -94,6 +103,9 @@ namespace CleanGuard_App.Forms
         {
             var btnAdd = new Button { Text = "新增一行", Left = 20, Top = 12, Width = 90, Height = 26 };
             var btnRemove = new Button { Text = "删除选中", Left = 120, Top = 12, Width = 90, Height = 26 };
+            var btnPaste = new Button { Text = "批量粘贴", Left = 220, Top = 12, Width = 90, Height = 26 };
+            var btnTemplate = new Button { Text = "下载模板", Left = 320, Top = 12, Width = 90, Height = 26 };
+            var btnImport = new Button { Text = "导入模板", Left = 420, Top = 12, Width = 90, Height = 26 };
 
             var grid = new DataGridView
             {
@@ -128,13 +140,40 @@ namespace CleanGuard_App.Forms
             }
             grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "领用日期", HeaderText = "领用日期(yyyy-MM-dd)", FillWeight = 30 });
 
-            btnAdd.Click += (s, e) => AddItemRow(grid, category, string.Empty, string.Empty, string.Empty, DateTime.Now.ToString("yyyy-MM-dd"));
+            btnAdd.Click += (s, e) =>
+            {
+                try
+                {
+                    AddItemRowWithLimit(grid, category, string.Empty, string.Empty, string.Empty, DateTime.Now.ToString("yyyy-MM-dd"));
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            };
             btnRemove.Click += (s, e) => RemoveSelectedRow(grid);
+            btnPaste.Click += (s, e) => PasteItemRows(grid, category);
+            btnTemplate.Click += (s, e) => ExportItemTemplate(category);
+            btnImport.Click += (s, e) => ImportItemTemplate(grid, category);
 
             tab.Controls.Add(btnAdd);
             tab.Controls.Add(btnRemove);
+            tab.Controls.Add(btnPaste);
+            tab.Controls.Add(btnTemplate);
+            tab.Controls.Add(btnImport);
             tab.Controls.Add(grid);
             _itemGrids[category] = grid;
+        }
+
+        private void AddItemRowWithLimit(DataGridView grid, string category, string size, string itemCode, string itemCondition, string issueDate)
+        {
+            int max = GetCategoryLimit(category);
+            if (grid.Rows.Count >= max)
+            {
+                throw new InvalidOperationException(string.Format("{0} 最多允许 {1} 行。", category, max));
+            }
+
+            AddItemRow(grid, category, size, itemCode, itemCondition, issueDate);
         }
 
         private static void AddItemRow(DataGridView grid, string category, string size, string itemCode, string itemCondition, string issueDate)
@@ -280,6 +319,12 @@ namespace CleanGuard_App.Forms
             foreach (var category in _categories)
             {
                 DataGridView grid = _itemGrids[category];
+                int max = GetCategoryLimit(category);
+                if (grid.Rows.Count > max)
+                {
+                    throw new InvalidOperationException(string.Format("{0} 超出最大行数 {1}，请删除后重试。", category, max));
+                }
+
                 int slot = 1;
                 foreach (DataGridViewRow row in grid.Rows)
                 {
@@ -334,6 +379,161 @@ namespace CleanGuard_App.Forms
         {
             return string.Equals(category, "安全鞋", StringComparison.Ordinal) ||
                    string.Equals(category, "帆布鞋", StringComparison.Ordinal);
+        }
+
+        private int GetCategoryLimit(string category)
+        {
+            int value;
+            return _categoryLimits.TryGetValue(category, out value) ? value : 10;
+        }
+
+        private void PasteItemRows(DataGridView grid, string category)
+        {
+            string text = Clipboard.GetText();
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                MessageBox.Show("剪贴板为空。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            try
+            {
+                int added = AppendRowsFromText(grid, category, text);
+                MessageBox.Show(string.Format("已批量粘贴 {0} 行。", added), "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "批量粘贴失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void ExportItemTemplate(string category)
+        {
+            using (var dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "CSV 文件|*.csv";
+                dialog.FileName = "用品模板_" + category + ".csv";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                string header = BuildItemTemplateHeader(category);
+                string sample = BuildItemTemplateSample(category);
+                File.WriteAllText(dialog.FileName, header + Environment.NewLine + sample, Encoding.UTF8);
+                MessageBox.Show("模板下载成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void ImportItemTemplate(DataGridView grid, string category)
+        {
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "CSV 文件|*.csv|文本文件|*.txt";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                try
+                {
+                    string text = File.ReadAllText(dialog.FileName, Encoding.UTF8);
+                    int added = AppendRowsFromText(grid, category, text, true);
+                    MessageBox.Show(string.Format("导入成功，共新增 {0} 行。", added), "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message, "导入失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+        }
+
+        private int AppendRowsFromText(DataGridView grid, string category, string text, bool skipHeader = false)
+        {
+            string[] lines = text.Replace("\r", string.Empty).Split('\n');
+            int start = 0;
+            if (skipHeader && lines.Length > 0)
+            {
+                start = 1;
+            }
+
+            int added = 0;
+            for (int i = start; i < lines.Length; i++)
+            {
+                string line = (lines[i] ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                string[] cells = line.Split('\t');
+                if (cells.Length == 1 && line.Contains(","))
+                {
+                    cells = line.Split(',');
+                }
+
+                string size = GetCell(cells, 0);
+                string itemCode = string.Empty;
+                string itemCondition = string.Empty;
+                string issueDate;
+
+                if (NeedCodeColumn(category))
+                {
+                    itemCode = GetCell(cells, 1);
+                    issueDate = GetCell(cells, 2);
+                }
+                else
+                {
+                    itemCondition = GetCell(cells, 1);
+                    issueDate = GetCell(cells, 2);
+                }
+
+                if (!string.IsNullOrWhiteSpace(issueDate))
+                {
+                    DateTime date;
+                    if (!DateTime.TryParse(issueDate, out date))
+                    {
+                        throw new InvalidOperationException(string.Format("第 {0} 行领用日期格式错误，请使用 yyyy-MM-dd。", i + 1));
+                    }
+
+                    issueDate = date.ToString("yyyy-MM-dd");
+                }
+
+                AddItemRowWithLimit(grid, category, size, itemCode, itemCondition, issueDate);
+                added++;
+            }
+
+            return added;
+        }
+
+        private static string GetCell(string[] cells, int index)
+        {
+            if (cells == null || index < 0 || index >= cells.Length)
+            {
+                return string.Empty;
+            }
+
+            return (cells[index] ?? string.Empty).Trim();
+        }
+
+        private static string BuildItemTemplateHeader(string category)
+        {
+            if (NeedCodeColumn(category))
+            {
+                return "尺码,编码,领用日期";
+            }
+
+            return "尺码,新旧,领用日期";
+        }
+
+        private static string BuildItemTemplateSample(string category)
+        {
+            if (NeedCodeColumn(category))
+            {
+                return "L,ABC001," + DateTime.Now.ToString("yyyy-MM-dd");
+            }
+
+            return "42,新," + DateTime.Now.ToString("yyyy-MM-dd");
         }
 
         private static void BindLockerCombo(ComboBox comboBox, string location, string type, string selectedLocker)
