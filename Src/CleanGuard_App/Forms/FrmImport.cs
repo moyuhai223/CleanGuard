@@ -41,7 +41,7 @@ namespace CleanGuard_App.Forms
             _btnImportFile.Click += (s, e) => ImportFile();
             Controls.Add(_btnImportFile);
 
-            _btnExportErrors.Text = "导出失败明细";
+            _btnExportErrors.Text = "导出回填模板";
             _btnExportErrors.SetBounds(350, 20, 130, 30);
             _btnExportErrors.Click += (s, e) => ExportErrors();
             Controls.Add(_btnExportErrors);
@@ -75,8 +75,12 @@ namespace CleanGuard_App.Forms
                     return;
                 }
 
-                ImportHelper.ExportTemplate(dialog.FileName);
-                MessageBox.Show("模板下载成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string warning;
+                string actualPath = ImportHelper.ExportTemplateWithFallback(dialog.FileName, out warning);
+                string message = string.IsNullOrWhiteSpace(warning)
+                    ? "模板下载成功。"
+                    : warning + "\n文件路径：" + actualPath;
+                MessageBox.Show(message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
@@ -115,7 +119,7 @@ namespace CleanGuard_App.Forms
                 }
 
                 _lastResult.ExportErrors(dialog.FileName);
-                MessageBox.Show("失败明细已导出。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("回填模板已导出，可修正后再次导入。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
@@ -134,6 +138,7 @@ namespace CleanGuard_App.Forms
             {
                 lines.Add("---- 失败明细（前10条）----");
                 lines.AddRange(result.Errors.Take(10));
+                lines.Add("提示：可点击“导出回填模板”进行批量修正后再次导入。");
             }
 
             _txtResult.Text = string.Join(Environment.NewLine, lines);

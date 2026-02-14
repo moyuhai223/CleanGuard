@@ -137,8 +137,12 @@ namespace CleanGuard_App.Forms
                     return;
                 }
 
-                ImportHelper.ExportLockerTemplate(dialog.FileName);
-                MessageBox.Show("柜位模板下载成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string warning;
+                string actualPath = ImportHelper.ExportLockerTemplateWithFallback(dialog.FileName, out warning);
+                string message = string.IsNullOrWhiteSpace(warning)
+                    ? "柜位模板下载成功。"
+                    : warning + "\n文件路径：" + actualPath;
+                MessageBox.Show(message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
