@@ -531,7 +531,6 @@ namespace CleanGuard_App.Utils
             return ex != null && ex.ToString().IndexOf("ICSharpCode.SharpZipLib", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-<<<<<<< codex/understand-program-logic-before-improving-features-ywow8f
         private static string BuildColumnError(int rowNumber, int columnNumber, string errorCode, string reason, string suggestion)
         {
             return string.Format("第 {0} 行，第 {1} 列（错误码 {2}）：{3} 建议修复：{4}", rowNumber, columnNumber, errorCode, reason, suggestion);
@@ -609,8 +608,7 @@ namespace CleanGuard_App.Utils
             return string.Format("第 {0} 行（工号: {1}，错误码 CG-IMP-999）：{2} 建议修复：根据提示修正对应列后重试。", rowNumber, empNo, message);
         }
 
-=======
->>>>>>> main
+
         private static string[] SplitCsvLine(string line)
         {
             var values = new List<string>();
