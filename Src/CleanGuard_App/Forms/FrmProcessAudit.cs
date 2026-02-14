@@ -19,6 +19,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnClearFilters = new Button();
         private readonly Button _btnExport = new Button();
         private readonly DataGridView _grid = new DataGridView();
+        private readonly Label _lblStats = new Label();
 
         private DataTable _rawTable;
 
@@ -91,11 +92,15 @@ namespace CleanGuard_App.Forms
             _btnExport.Click += (s, e) => ExportCsv();
             Controls.Add(_btnExport);
 
-            _grid.SetBounds(20, 65, 1120, 455);
+            _grid.SetBounds(20, 90, 1120, 430);
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             Controls.Add(_grid);
+
+            _lblStats.SetBounds(20, 66, 1120, 20);
+            _lblStats.Text = "当前结果：0";
+            Controls.Add(_lblStats);
         }
 
         private void LoadLogs()
@@ -142,6 +147,7 @@ namespace CleanGuard_App.Forms
 
             view.RowFilter = conditions.ToString();
             _grid.DataSource = view;
+            UpdateStats(view);
         }
 
 
@@ -158,6 +164,37 @@ namespace CleanGuard_App.Forms
             _chkDateRange.Checked = false;
             _txtKeyword.Clear();
             ApplyFilter();
+        }
+
+
+        private void UpdateStats(DataView view)
+        {
+            int total = view == null ? 0 : view.Count;
+            int added = CountByPrefix(view, "新增工序字典:");
+            int deleted = CountByPrefix(view, "删除工序字典:");
+            int renamed = CountByPrefix(view, "重命名工序字典:");
+            int imported = CountByPrefix(view, "工序批量导入完成");
+            _lblStats.Text = string.Format("当前结果：{0}（新增 {1}，删除 {2}，重命名 {3}，批量导入 {4}）", total, added, deleted, renamed, imported);
+        }
+
+        private static int CountByPrefix(DataView view, string prefix)
+        {
+            if (view == null || string.IsNullOrWhiteSpace(prefix))
+            {
+                return 0;
+            }
+
+            int count = 0;
+            foreach (DataRowView row in view)
+            {
+                string message = Convert.ToString(row["内容"]);
+                if (!string.IsNullOrWhiteSpace(message) && message.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
         private static string BuildOpTypeCondition(string opType)
