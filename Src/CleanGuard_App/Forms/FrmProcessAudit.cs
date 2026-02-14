@@ -10,6 +10,9 @@ namespace CleanGuard_App.Forms
     public class FrmProcessAudit : Form
     {
         private readonly NumericUpDown _numLimit = new NumericUpDown();
+        private readonly ComboBox _cmbOpType = new ComboBox();
+        private readonly DateTimePicker _dtFrom = new DateTimePicker();
+        private readonly DateTimePicker _dtTo = new DateTimePicker();
         private readonly TextBox _txtKeyword = new TextBox();
         private readonly Button _btnRefresh = new Button();
         private readonly Button _btnExport = new Button();
@@ -20,8 +23,8 @@ namespace CleanGuard_App.Forms
         public FrmProcessAudit()
         {
             Text = "工序字典审计视图";
-            Width = 980;
-            Height = 580;
+            Width = 1160;
+            Height = 620;
             StartPosition = FormStartPosition.CenterParent;
 
             InitializeLayout();
@@ -38,22 +41,44 @@ namespace CleanGuard_App.Forms
             _numLimit.Value = 100;
             Controls.Add(_numLimit);
 
-            Controls.Add(new Label { Text = "关键字", Left = 180, Top = 24, Width = 50 });
-            _txtKeyword.SetBounds(235, 20, 220, 28);
+            Controls.Add(new Label { Text = "操作类型", Left = 180, Top = 24, Width = 60 });
+            _cmbOpType.SetBounds(245, 20, 130, 28);
+            _cmbOpType.DropDownStyle = ComboBoxStyle.DropDownList;
+            _cmbOpType.Items.AddRange(new object[] { "全部", "新增", "删除", "重命名", "批量导入" });
+            _cmbOpType.SelectedIndex = 0;
+            _cmbOpType.SelectedIndexChanged += (s, e) => ApplyFilter();
+            Controls.Add(_cmbOpType);
+
+            Controls.Add(new Label { Text = "起始日期", Left = 390, Top = 24, Width = 60 });
+            _dtFrom.SetBounds(455, 20, 120, 28);
+            _dtFrom.Format = DateTimePickerFormat.Custom;
+            _dtFrom.CustomFormat = "yyyy-MM-dd";
+            _dtFrom.ValueChanged += (s, e) => ApplyFilter();
+            Controls.Add(_dtFrom);
+
+            Controls.Add(new Label { Text = "结束日期", Left = 585, Top = 24, Width = 60 });
+            _dtTo.SetBounds(650, 20, 120, 28);
+            _dtTo.Format = DateTimePickerFormat.Custom;
+            _dtTo.CustomFormat = "yyyy-MM-dd";
+            _dtTo.ValueChanged += (s, e) => ApplyFilter();
+            Controls.Add(_dtTo);
+
+            Controls.Add(new Label { Text = "关键字", Left = 780, Top = 24, Width = 50 });
+            _txtKeyword.SetBounds(835, 20, 130, 28);
             _txtKeyword.TextChanged += (s, e) => ApplyFilter();
             Controls.Add(_txtKeyword);
 
             _btnRefresh.Text = "刷新";
-            _btnRefresh.SetBounds(470, 20, 80, 28);
+            _btnRefresh.SetBounds(975, 20, 70, 28);
             _btnRefresh.Click += (s, e) => LoadLogs();
             Controls.Add(_btnRefresh);
 
             _btnExport.Text = "导出CSV";
-            _btnExport.SetBounds(560, 20, 90, 28);
+            _btnExport.SetBounds(1050, 20, 90, 28);
             _btnExport.Click += (s, e) => ExportCsv();
             Controls.Add(_btnExport);
 
-            _grid.SetBounds(20, 65, 920, 460);
+            _grid.SetBounds(20, 65, 1120, 500);
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -73,30 +98,43 @@ namespace CleanGuard_App.Forms
                 return;
             }
 
-            string keyword = (_txtKeyword.Text ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(keyword))
+            DataView view = _rawTable.DefaultView;
+            var conditions = new StringBuilder();
+
+            string opType = Convert.ToString(_cmbOpType.SelectedItem ?? "全部");
+            if (!string.Equals(opType, "全部", StringComparison.Ordinal))
             {
-                _grid.DataSource = _rawTable;
-                return;
+                if (conditions.Length > 0) conditions.Append(" AND ");
+                conditions.Append(BuildOpTypeCondition(opType));
             }
 
-            try
+            DateTime fromDate = _dtFrom.Value.Date;
+            DateTime toDate = _dtTo.Value.Date.AddDays(1);
+            if (fromDate < toDate)
             {
-                DataView view = _rawTable.DefaultView;
+                if (conditions.Length > 0) conditions.Append(" AND ");
+                conditions.AppendFormat("时间 >= '{0}' AND 时间 < '{1}'", fromDate.ToString("yyyy-MM-dd"), toDate.ToString("yyyy-MM-dd"));
+            }
+
+            string keyword = (_txtKeyword.Text ?? string.Empty).Trim();
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                if (conditions.Length > 0) conditions.Append(" AND ");
                 string escaped = keyword.Replace("'", "''");
-                view.RowFilter = string.Format("内容 LIKE '%{0}%'", escaped);
-                _grid.DataSource = view;
+                conditions.AppendFormat("内容 LIKE '%{0}%'", escaped);
             }
-            catch (EvaluateException)
-            {
-                // If the filter expression is invalid, fall back to unfiltered data.
-                _grid.DataSource = _rawTable;
-            }
-            catch (SyntaxErrorException)
-            {
-                // If the filter expression is invalid, fall back to unfiltered data.
-                _grid.DataSource = _rawTable;
-            }
+
+            view.RowFilter = conditions.ToString();
+            _grid.DataSource = view;
+        }
+
+        private static string BuildOpTypeCondition(string opType)
+        {
+            if (opType == "新增") return "内容 LIKE '新增工序字典:%'";
+            if (opType == "删除") return "内容 LIKE '删除工序字典:%'";
+            if (opType == "重命名") return "内容 LIKE '重命名工序字典:%'";
+            if (opType == "批量导入") return "内容 LIKE '工序批量导入完成%'";
+            return string.Empty;
         }
 
         private void ExportCsv()

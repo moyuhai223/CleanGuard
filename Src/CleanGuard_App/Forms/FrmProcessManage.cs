@@ -15,8 +15,6 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnRefresh = new Button();
         private readonly Button _btnImport = new Button();
         private readonly Button _btnAudit = new Button();
-        private readonly Button _btnImport = new Button();
-
 
         public FrmProcessManage()
         {
@@ -66,7 +64,6 @@ namespace CleanGuard_App.Forms
             Controls.Add(_btnAudit);
 
             _grid.SetBounds(20, 65, 620, 385);
-
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -123,7 +120,6 @@ namespace CleanGuard_App.Forms
                 form.ShowDialog(this);
             }
         }
-
 
         private void FillSelectedToInput()
         {

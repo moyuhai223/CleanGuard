@@ -289,7 +289,6 @@ ORDER BY Status DESC, Name;";
             return result;
         }
 
-
         public static void RenameProcess(string oldName, string newName)
         {
             if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName))
@@ -1043,7 +1042,6 @@ VALUES (@LockerID, @Location, @Type, 0)";
             Errors = new List<string>();
         }
     }
-
 
     public class EmployeeEditModel
     {
