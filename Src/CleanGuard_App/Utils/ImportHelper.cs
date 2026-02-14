@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 
 namespace CleanGuard_App.Utils
@@ -11,6 +12,29 @@ namespace CleanGuard_App.Utils
         {
             "工号", "姓名", "工序", "1F衣柜", "1F鞋柜", "2F衣柜", "2F鞋柜", "无尘服1尺码", "鞋码"
         };
+
+        public static void ExportTemplate(string filePath)
+        {
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext == ".xlsx")
+            {
+                ExportTemplateXlsx(filePath);
+                return;
+            }
+
+            ExportTemplateCsv(filePath);
+        }
+
+        public static ImportResult ImportFromFile(string filePath)
+        {
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext == ".xlsx")
+            {
+                return ImportFromXlsx(filePath);
+            }
+
+            return ImportFromCsv(filePath);
+        }
 
         public static void ExportTemplateCsv(string filePath)
         {
@@ -41,6 +65,8 @@ namespace CleanGuard_App.Utils
                 return result;
             }
 
+            ValidateHeader(SplitCsvLine(lines[0]), result);
+
             for (int i = 1; i < lines.Length; i++)
             {
                 string line = lines[i].Trim();
@@ -50,35 +76,258 @@ namespace CleanGuard_App.Utils
                 }
 
                 string[] cells = SplitCsvLine(line);
-                if (cells.Length < 7)
+                ImportRow(cells, i + 1, result);
+            }
+
+            SQLiteHelper.WriteSystemLog("Import", string.Format("CSV导入完成：文件={0}，成功 {1}，失败 {2}", Path.GetFileName(filePath), result.SuccessCount, result.FailedCount));
+            return result;
+        }
+
+        public static ImportResult ImportFromXlsx(string filePath)
+        {
+            var result = new ImportResult
+            {
+                SourceFile = filePath,
+                ImportTime = DateTime.Now
+            };
+
+            if (!File.Exists(filePath))
+            {
+                result.Errors.Add("导入文件不存在。");
+                return result;
+            }
+
+            if (!TryImportFromXlsxByNpoi(filePath, result))
+            {
+                result.Errors.Add("当前环境未检测到 NPOI，无法读取 xlsx。请先安装 NPOI 或改用 CSV 导入。");
+                return result;
+            }
+
+            SQLiteHelper.WriteSystemLog("Import", string.Format("XLSX导入完成：文件={0}，成功 {1}，失败 {2}", Path.GetFileName(filePath), result.SuccessCount, result.FailedCount));
+            return result;
+        }
+
+        private static bool TryImportFromXlsxByNpoi(string filePath, ImportResult result)
+        {
+            try
+            {
+                Type workbookType = Type.GetType("NPOI.XSSF.UserModel.XSSFWorkbook, NPOI.OOXML", false);
+                if (workbookType == null)
                 {
-                    result.FailedCount++;
-                    result.Errors.Add($"第 {i + 1} 行列数不足，至少需要 7 列。内容: {line}");
-                    continue;
+                    return false;
                 }
 
-                try
+                object workbook;
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
-                    SQLiteHelper.AddEmployee(
-                        cells[0],
-                        cells[1],
-                        cells[2],
-                        cells[3],
-                        cells[4],
-                        cells[5],
-                        cells[6]);
-                    result.SuccessCount++;
+                    workbook = Activator.CreateInstance(workbookType, fs);
                 }
-                catch (Exception ex)
+
+                if (workbook == null)
                 {
-                    result.FailedCount++;
-                    string empNo = cells.Length > 0 ? cells[0] : "(空)";
-                    result.Errors.Add($"第 {i + 1} 行导入失败（工号: {empNo}）：{ex.Message}");
+                    return false;
+                }
+
+                Type iWorkbookType = workbookType.GetInterface("IWorkbook");
+                MethodInfo getSheetAt = iWorkbookType != null ? iWorkbookType.GetMethod("GetSheetAt") : workbookType.GetMethod("GetSheetAt");
+                object sheet = getSheetAt.Invoke(workbook, new object[] { 0 });
+                if (sheet == null)
+                {
+                    result.Errors.Add("xlsx 文件无可用工作表。");
+                    return true;
+                }
+
+                Type sheetType = sheet.GetType();
+                PropertyInfo lastRowNumProp = sheetType.GetProperty("LastRowNum");
+                MethodInfo getRow = sheetType.GetMethod("GetRow");
+
+                object headerRow = getRow.Invoke(sheet, new object[] { 0 });
+                ValidateHeader(ReadRowCells(headerRow), result);
+
+                int lastRowNum = Convert.ToInt32(lastRowNumProp.GetValue(sheet, null));
+                for (int r = 1; r <= lastRowNum; r++)
+                {
+                    object row = getRow.Invoke(sheet, new object[] { r });
+                    if (row == null)
+                    {
+                        continue;
+                    }
+
+                    string[] cells = ReadRowCells(row);
+                    if (IsEmptyRow(cells))
+                    {
+                        continue;
+                    }
+
+                    ImportRow(cells, r + 1, result);
+                }
+
+                IDisposable disposable = workbook as IDisposable;
+                if (disposable != null)
+                {
+                    disposable.Dispose();
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                result.Errors.Add("读取 xlsx 失败: " + ex.Message);
+                return true;
+            }
+        }
+
+        private static void ExportTemplateXlsx(string filePath)
+        {
+            Type workbookType = Type.GetType("NPOI.XSSF.UserModel.XSSFWorkbook, NPOI.OOXML", false);
+            if (workbookType == null)
+            {
+                throw new InvalidOperationException("当前环境未检测到 NPOI，无法导出 xlsx 模板。请先安装 NPOI 或导出 CSV 模板。");
+            }
+
+            object workbook = Activator.CreateInstance(workbookType);
+            Type iWorkbookType = workbookType.GetInterface("IWorkbook");
+            MethodInfo createSheet = iWorkbookType != null ? iWorkbookType.GetMethod("CreateSheet", new[] { typeof(string) }) : workbookType.GetMethod("CreateSheet", new[] { typeof(string) });
+            MethodInfo write = iWorkbookType != null ? iWorkbookType.GetMethod("Write", new[] { typeof(Stream) }) : workbookType.GetMethod("Write", new[] { typeof(Stream) });
+
+            object sheet = createSheet.Invoke(workbook, new object[] { "导入模板" });
+            Type sheetType = sheet.GetType();
+            MethodInfo createRow = sheetType.GetMethod("CreateRow");
+
+            object headerRow = createRow.Invoke(sheet, new object[] { 0 });
+            WriteCellsToRow(headerRow, TemplateHeaders);
+
+            object sampleRow = createRow.Invoke(sheet, new object[] { 1 });
+            WriteCellsToRow(sampleRow, new[] { "P001", "张三", "热切", "1F-C-01", "1F-S-01", "2F-C-01", "2F-S-01", "L", "42" });
+
+            using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+            {
+                write.Invoke(workbook, new object[] { fs });
+            }
+
+            IDisposable disposable = workbook as IDisposable;
+            if (disposable != null)
+            {
+                disposable.Dispose();
+            }
+        }
+
+        private static void WriteCellsToRow(object row, string[] values)
+        {
+            if (row == null || values == null)
+            {
+                return;
+            }
+
+            Type rowType = row.GetType();
+            MethodInfo createCell = rowType.GetMethod("CreateCell", new[] { typeof(int) });
+            for (int i = 0; i < values.Length; i++)
+            {
+                object cell = createCell.Invoke(row, new object[] { i });
+                MethodInfo setCellValue = cell.GetType().GetMethod("SetCellValue", new[] { typeof(string) });
+                setCellValue.Invoke(cell, new object[] { values[i] });
+            }
+        }
+
+        private static string[] ReadRowCells(object row)
+        {
+            if (row == null)
+            {
+                return new string[0];
+            }
+
+            Type rowType = row.GetType();
+            PropertyInfo lastCellNumProp = rowType.GetProperty("LastCellNum");
+            MethodInfo getCell = rowType.GetMethod("GetCell", new[] { typeof(int) });
+
+            int lastCellNum = Convert.ToInt32(lastCellNumProp.GetValue(row, null));
+            if (lastCellNum <= 0)
+            {
+                return new string[0];
+            }
+
+            var cells = new string[lastCellNum];
+            for (int i = 0; i < lastCellNum; i++)
+            {
+                object cell = getCell.Invoke(row, new object[] { i });
+                cells[i] = cell == null ? string.Empty : Convert.ToString(cell);
+            }
+
+            return cells;
+        }
+
+        private static bool IsEmptyRow(string[] cells)
+        {
+            if (cells == null || cells.Length == 0)
+            {
+                return true;
+            }
+
+            for (int i = 0; i < cells.Length; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(cells[i]))
+                {
+                    return false;
                 }
             }
 
-            SQLiteHelper.WriteSystemLog("Import", $"CSV导入完成：文件={Path.GetFileName(filePath)}，成功 {result.SuccessCount}，失败 {result.FailedCount}");
-            return result;
+            return true;
+        }
+
+        private static void ValidateHeader(string[] headerCells, ImportResult result)
+        {
+            if (headerCells == null)
+            {
+                result.Errors.Add("未检测到表头，系统将继续尝试按模板列顺序导入。");
+                return;
+            }
+
+            for (int i = 0; i < TemplateHeaders.Length; i++)
+            {
+                string actual = i < headerCells.Length ? (headerCells[i] ?? string.Empty).Trim() : string.Empty;
+                if (!string.Equals(actual, TemplateHeaders[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Errors.Add(string.Format("表头第 {0} 列建议为“{1}”，当前为“{2}”。系统将继续按模板顺序读取。", i + 1, TemplateHeaders[i], actual));
+                }
+            }
+        }
+
+        private static void ImportRow(string[] cells, int rowNumber, ImportResult result)
+        {
+            if (cells == null || cells.Length < 7)
+            {
+                result.FailedCount++;
+                result.Errors.Add(string.Format("第 {0} 行列数不足，至少需要 7 列。", rowNumber));
+                return;
+            }
+
+            try
+            {
+                SQLiteHelper.AddEmployee(
+                    SafeCell(cells, 0),
+                    SafeCell(cells, 1),
+                    SafeCell(cells, 2),
+                    SafeCell(cells, 3),
+                    SafeCell(cells, 4),
+                    SafeCell(cells, 5),
+                    SafeCell(cells, 6));
+                result.SuccessCount++;
+            }
+            catch (Exception ex)
+            {
+                result.FailedCount++;
+                result.Errors.Add(string.Format("第 {0} 行导入失败（工号: {1}）：{2}", rowNumber, SafeCell(cells, 0), ex.Message));
+            }
+        }
+
+        private static string SafeCell(string[] cells, int index)
+        {
+            if (cells == null || index < 0 || index >= cells.Length)
+            {
+                return string.Empty;
+            }
+
+            return (cells[index] ?? string.Empty).Trim();
         }
 
         private static string[] SplitCsvLine(string line)

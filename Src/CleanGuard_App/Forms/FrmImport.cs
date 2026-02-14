@@ -10,7 +10,7 @@ namespace CleanGuard_App.Forms
     public class FrmImport : Form
     {
         private readonly Button _btnDownloadTemplate = new Button();
-        private readonly Button _btnImportCsv = new Button();
+        private readonly Button _btnImportFile = new Button();
         private readonly Button _btnExportErrors = new Button();
         private readonly Button _btnRefreshLogs = new Button();
         private readonly TextBox _txtResult = new TextBox();
@@ -31,23 +31,23 @@ namespace CleanGuard_App.Forms
 
         private void InitializeLayout()
         {
-            _btnDownloadTemplate.Text = "下载CSV模板";
-            _btnDownloadTemplate.SetBounds(20, 20, 130, 30);
+            _btnDownloadTemplate.Text = "下载模板(CSV/XLSX)";
+            _btnDownloadTemplate.SetBounds(20, 20, 170, 30);
             _btnDownloadTemplate.Click += (s, e) => DownloadTemplate();
             Controls.Add(_btnDownloadTemplate);
 
-            _btnImportCsv.Text = "选择CSV并导入";
-            _btnImportCsv.SetBounds(160, 20, 140, 30);
-            _btnImportCsv.Click += (s, e) => ImportCsv();
-            Controls.Add(_btnImportCsv);
+            _btnImportFile.Text = "选择文件并导入";
+            _btnImportFile.SetBounds(200, 20, 140, 30);
+            _btnImportFile.Click += (s, e) => ImportFile();
+            Controls.Add(_btnImportFile);
 
             _btnExportErrors.Text = "导出失败明细";
-            _btnExportErrors.SetBounds(310, 20, 130, 30);
+            _btnExportErrors.SetBounds(350, 20, 130, 30);
             _btnExportErrors.Click += (s, e) => ExportErrors();
             Controls.Add(_btnExportErrors);
 
             _btnRefreshLogs.Text = "刷新导入日志";
-            _btnRefreshLogs.SetBounds(450, 20, 130, 30);
+            _btnRefreshLogs.SetBounds(490, 20, 130, 30);
             _btnRefreshLogs.Click += (s, e) => LoadImportLogs();
             Controls.Add(_btnRefreshLogs);
 
@@ -68,29 +68,29 @@ namespace CleanGuard_App.Forms
         {
             using (var dialog = new SaveFileDialog())
             {
-                dialog.Filter = "CSV 文件|*.csv";
-                dialog.FileName = "CleanGuard_导入模板.csv";
+                dialog.Filter = "Excel 文件|*.xlsx|CSV 文件|*.csv";
+                dialog.FileName = "CleanGuard_导入模板.xlsx";
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
                     return;
                 }
 
-                ImportHelper.ExportTemplateCsv(dialog.FileName);
+                ImportHelper.ExportTemplate(dialog.FileName);
                 MessageBox.Show("模板下载成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
-        private void ImportCsv()
+        private void ImportFile()
         {
             using (var dialog = new OpenFileDialog())
             {
-                dialog.Filter = "CSV 文件|*.csv";
+                dialog.Filter = "Excel 文件|*.xlsx|CSV 文件|*.csv";
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
                     return;
                 }
 
-                _lastResult = ImportHelper.ImportFromCsv(dialog.FileName);
+                _lastResult = ImportHelper.ImportFromFile(dialog.FileName);
                 ShowImportResult(_lastResult);
                 LoadImportLogs();
                 DialogResult = DialogResult.OK;
