@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
@@ -15,6 +16,8 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnRefresh = new Button();
         private readonly Button _btnExportImage = new Button();
         private readonly Button _btnTrend = new Button();
+        private readonly FlowLayoutPanel _pnlHeatmap = new FlowLayoutPanel();
+        private readonly Label _lblHeatLegend = new Label();
 
         public FrmLockerChart()
         {
@@ -55,10 +58,22 @@ namespace CleanGuard_App.Forms
             _chart.Legends.Add(new Legend("Legend"));
             Controls.Add(_chart);
 
-            _lblSummary.SetBounds(20, 485, 840, 90);
+            _lblHeatLegend.SetBounds(20, 485, 840, 20);
+            _lblHeatLegend.Text = "区域热力块：绿色=低占用，橙色=中占用，红色=高占用；橙色边框表示该区域存在异常备注柜位";
+            Controls.Add(_lblHeatLegend);
+
+            _pnlHeatmap.SetBounds(20, 510, 840, 150);
+            _pnlHeatmap.AutoScroll = true;
+            _pnlHeatmap.WrapContents = true;
+            _pnlHeatmap.BorderStyle = BorderStyle.FixedSingle;
+            Controls.Add(_pnlHeatmap);
+
+            _lblSummary.SetBounds(20, 665, 840, 90);
             _lblSummary.Font = new Font("Microsoft YaHei", 10, FontStyle.Regular);
             _lblSummary.BorderStyle = BorderStyle.FixedSingle;
             Controls.Add(_lblSummary);
+
+            Height = 820;
         }
 
         private void LoadData()
@@ -80,7 +95,96 @@ namespace CleanGuard_App.Forms
                 AddPieSeries("2F鞋柜", summary.TwoFShoeOccupied, summary.TwoFShoeTotal);
             }
 
+            LoadHeatmapBlocks(floor);
             _lblSummary.Text = BuildSummaryText(summary, floor);
+        }
+
+        private void LoadHeatmapBlocks(string floor)
+        {
+            _pnlHeatmap.SuspendLayout();
+            _pnlHeatmap.Controls.Clear();
+
+            string filter = floor == "全部" ? string.Empty : floor;
+            List<LockerHeatBlock> blocks = SQLiteHelper.GetLockerHeatBlocks(filter);
+            if (blocks.Count == 0)
+            {
+                _pnlHeatmap.Controls.Add(new Label { Text = "暂无可展示的柜位区域数据。", AutoSize = true, Margin = new Padding(10) });
+                _pnlHeatmap.ResumeLayout();
+                return;
+            }
+
+            foreach (var block in blocks)
+            {
+                _pnlHeatmap.Controls.Add(CreateHeatBlockCard(block));
+            }
+
+            _pnlHeatmap.ResumeLayout();
+        }
+
+        private static Control CreateHeatBlockCard(LockerHeatBlock block)
+        {
+            var panel = new Panel
+            {
+                Width = 190,
+                Height = 85,
+                Margin = new Padding(6),
+                BackColor = GetHeatColor(block.OccupancyRate),
+                BorderStyle = block.AbnormalCount > 0 ? BorderStyle.Fixed3D : BorderStyle.FixedSingle
+            };
+
+            decimal rate = Math.Round(block.OccupancyRate * 100m, 1);
+            var title = new Label
+            {
+                Left = 8,
+                Top = 8,
+                Width = 172,
+                Height = 18,
+                Text = string.Format("{0}-{1}-{2}", block.Location, block.Type, block.RegionName),
+                Font = new Font("Microsoft YaHei", 9, FontStyle.Bold)
+            };
+            var line1 = new Label
+            {
+                Left = 8,
+                Top = 33,
+                Width = 172,
+                Height = 18,
+                Text = string.Format("占用：{0}/{1}（{2}%）", block.Occupied, block.Total, rate)
+            };
+            var line2 = new Label
+            {
+                Left = 8,
+                Top = 55,
+                Width = 172,
+                Height = 18,
+                Text = block.AbnormalCount > 0
+                    ? string.Format("异常柜位：{0}", block.AbnormalCount)
+                    : "异常柜位：0"
+            };
+
+            panel.Controls.Add(title);
+            panel.Controls.Add(line1);
+            panel.Controls.Add(line2);
+            return panel;
+        }
+
+        private static Color GetHeatColor(decimal occupancyRate)
+        {
+            if (occupancyRate >= 0.9m)
+            {
+                return Color.FromArgb(224, 102, 102);
+            }
+
+            if (occupancyRate >= 0.7m)
+            {
+                return Color.FromArgb(246, 178, 107);
+            }
+
+            if (occupancyRate >= 0.5m)
+            {
+                return Color.FromArgb(255, 229, 153);
+            }
+
+            return Color.FromArgb(147, 196, 125);
         }
 
         private void AddPieSeries(string title, int occupied, int total)

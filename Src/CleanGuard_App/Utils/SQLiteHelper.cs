@@ -481,6 +481,80 @@ GROUP BY Location, Type;";
             return summary;
         }
 
+        public static List<LockerHeatBlock> GetLockerHeatBlocks(string floor)
+        {
+            var rawRows = new List<LockerHeatBlockRaw>();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = @"SELECT LockerID, Location, Type, IsOccupied, IFNULL(Remark, '') AS Remark
+FROM T_Lockers
+WHERE (@Floor = '' OR Location = @Floor)
+ORDER BY Location, Type, LockerID";
+                cmd.Parameters.AddWithValue("@Floor", string.IsNullOrWhiteSpace(floor) ? string.Empty : floor.Trim());
+
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        rawRows.Add(new LockerHeatBlockRaw
+                        {
+                            LockerID = reader["LockerID"].ToString(),
+                            Location = reader["Location"].ToString(),
+                            Type = reader["Type"].ToString(),
+                            IsOccupied = Convert.ToInt32(reader["IsOccupied"]),
+                            Remark = reader["Remark"].ToString()
+                        });
+                    }
+                }
+            }
+
+            var map = new Dictionary<string, LockerHeatBlock>(StringComparer.OrdinalIgnoreCase);
+            foreach (var row in rawRows)
+            {
+                int index = GetLockerRegionIndex(row.LockerID);
+                string range = GetRegionRangeText(index);
+                string key = row.Location + "|" + row.Type + "|" + index;
+
+                LockerHeatBlock block;
+                if (!map.TryGetValue(key, out block))
+                {
+                    block = new LockerHeatBlock
+                    {
+                        Location = row.Location,
+                        Type = row.Type,
+                        RegionIndex = index,
+                        RegionName = range
+                    };
+                    map[key] = block;
+                }
+
+                block.Total++;
+                if (row.IsOccupied == 1)
+                {
+                    block.Occupied++;
+                }
+
+                if (!string.IsNullOrWhiteSpace(row.Remark))
+                {
+                    block.AbnormalCount++;
+                }
+            }
+
+            var list = new List<LockerHeatBlock>(map.Values);
+            list.Sort((a, b) =>
+            {
+                int c = string.Compare(a.Location, b.Location, StringComparison.OrdinalIgnoreCase);
+                if (c != 0) return c;
+                c = string.Compare(a.Type, b.Type, StringComparison.OrdinalIgnoreCase);
+                if (c != 0) return c;
+                return a.RegionIndex.CompareTo(b.RegionIndex);
+            });
+
+            return list;
+        }
+
         public static void AddEmployee(
             string empNo,
             string name,
@@ -1150,6 +1224,46 @@ VALUES (@LockerID, @Location, @Type, 0)";
             return string.IsNullOrWhiteSpace(input) ? (object)DBNull.Value : input.Trim();
         }
 
+        private static int GetLockerRegionIndex(string lockerId)
+        {
+            if (string.IsNullOrWhiteSpace(lockerId))
+            {
+                return 999;
+            }
+
+            int i = lockerId.Length - 1;
+            while (i >= 0 && char.IsDigit(lockerId[i]))
+            {
+                i--;
+            }
+
+            if (i == lockerId.Length - 1)
+            {
+                return 999;
+            }
+
+            string digits = lockerId.Substring(i + 1);
+            int number;
+            if (!int.TryParse(digits, out number) || number <= 0)
+            {
+                return 999;
+            }
+
+            return ((number - 1) / 10) + 1;
+        }
+
+        private static string GetRegionRangeText(int regionIndex)
+        {
+            if (regionIndex >= 900)
+            {
+                return "其他";
+            }
+
+            int start = (regionIndex - 1) * 10 + 1;
+            int end = regionIndex * 10;
+            return start.ToString("00") + "-" + end.ToString("00") + "区";
+        }
+
         private static void ExecuteNonQuery(string sql, params SQLiteParameter[] parameters)
         {
             using (var conn = new SQLiteConnection(ConnectionString))
@@ -1253,6 +1367,34 @@ VALUES (@LockerID, @Location, @Type, 0)";
             {
                 TwoFShoeOccupied = occupied;
                 TwoFShoeTotal = total;
+            }
+        }
+    }
+
+    internal class LockerHeatBlockRaw
+    {
+        public string LockerID { get; set; }
+        public string Location { get; set; }
+        public string Type { get; set; }
+        public int IsOccupied { get; set; }
+        public string Remark { get; set; }
+    }
+
+    public class LockerHeatBlock
+    {
+        public string Location { get; set; }
+        public string Type { get; set; }
+        public int RegionIndex { get; set; }
+        public string RegionName { get; set; }
+        public int Occupied { get; set; }
+        public int Total { get; set; }
+        public int AbnormalCount { get; set; }
+
+        public decimal OccupancyRate
+        {
+            get
+            {
+                return Total <= 0 ? 0 : Occupied * 1m / Total;
             }
         }
     }
