@@ -15,6 +15,8 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnCopyErrors = new Button();
         private readonly Button _btnRefreshLogs = new Button();
         private readonly TextBox _txtResult = new TextBox();
+        private readonly Label _lblFailurePreview = new Label();
+        private readonly DataGridView _gridFailurePreview = new DataGridView();
         private readonly DataGridView _gridLogs = new DataGridView();
 
         private ImportResult _lastResult;
@@ -64,7 +66,17 @@ namespace CleanGuard_App.Forms
             _txtResult.ScrollBars = ScrollBars.Vertical;
             Controls.Add(_txtResult);
 
-            _gridLogs.SetBounds(20, 220, 920, 340);
+            _lblFailurePreview.Text = "失败数据预览（前20条，可直接按原列修正后回填）";
+            _lblFailurePreview.SetBounds(20, 210, 450, 24);
+            Controls.Add(_lblFailurePreview);
+
+            _gridFailurePreview.SetBounds(20, 235, 920, 150);
+            _gridFailurePreview.ReadOnly = true;
+            _gridFailurePreview.AllowUserToAddRows = false;
+            _gridFailurePreview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            Controls.Add(_gridFailurePreview);
+
+            _gridLogs.SetBounds(20, 395, 920, 165);
             _gridLogs.ReadOnly = true;
             _gridLogs.AllowUserToAddRows = false;
             _gridLogs.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -170,6 +182,45 @@ namespace CleanGuard_App.Forms
             }
 
             _txtResult.Text = string.Join(Environment.NewLine, lines);
+            BindFailurePreview(result);
+        }
+
+        private void BindFailurePreview(ImportResult result)
+        {
+            if (result == null || result.FailedRows == null || result.FailedRows.Count == 0)
+            {
+                _gridFailurePreview.DataSource = null;
+                return;
+            }
+
+            var table = new DataTable();
+            table.Columns.Add("源行号");
+            table.Columns.Add("工号");
+            table.Columns.Add("姓名");
+            table.Columns.Add("工序");
+            table.Columns.Add("1F衣柜");
+            table.Columns.Add("1F鞋柜");
+            table.Columns.Add("2F衣柜");
+            table.Columns.Add("2F鞋柜");
+            table.Columns.Add("错误信息");
+
+            int count = Math.Min(20, result.FailedRows.Count);
+            for (int i = 0; i < count; i++)
+            {
+                var row = result.FailedRows[i];
+                table.Rows.Add(
+                    row.RowNumber,
+                    row.EmpNo,
+                    row.Name,
+                    row.Process,
+                    row.Locker1FClothes,
+                    row.Locker1FShoe,
+                    row.Locker2FClothes,
+                    row.Locker2FShoe,
+                    row.Error);
+            }
+
+            _gridFailurePreview.DataSource = table;
         }
 
         private void LoadImportLogs()
