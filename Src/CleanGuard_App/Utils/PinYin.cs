@@ -46,7 +46,7 @@ namespace CleanGuard_App.Utils
                 return '\0';
             }
 
-            if (char.IsLetterOrDigit(ch))
+            if (IsAsciiLetterOrDigit(ch))
             {
                 return char.ToUpperInvariant(ch);
             }
@@ -68,6 +68,13 @@ namespace CleanGuard_App.Utils
             }
 
             return '#';
+        }
+
+        private static bool IsAsciiLetterOrDigit(char ch)
+        {
+            return (ch >= '0' && ch <= '9') ||
+                   (ch >= 'A' && ch <= 'Z') ||
+                   (ch >= 'a' && ch <= 'z');
         }
     }
 }
