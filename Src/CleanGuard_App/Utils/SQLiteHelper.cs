@@ -214,6 +214,84 @@ ORDER BY Status DESC, Name;";
             WriteSystemLog("Employee", "删除工序字典: " + name);
         }
 
+<<<<<<< codex/start-development-based-on-documentation-2dnqub
+        public static ProcessImportResult ImportProcessesFromCsv(string filePath)
+        {
+            var result = new ProcessImportResult();
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
+                result.Errors.Add("导入文件不存在。");
+                return result;
+            }
+
+            string[] lines = File.ReadAllLines(filePath);
+            var uniqueNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = (lines[i] ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                string name = line;
+                if (i == 0 && line.Contains(","))
+                {
+                    string[] parts = line.Split(',');
+                    if (parts.Length > 0 && string.Equals(parts[0].Trim(), "工序", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    name = parts[0].Trim();
+                }
+                else if (line.Contains(","))
+                {
+                    name = line.Split(',')[0].Trim();
+                }
+
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    result.FailedCount++;
+                    result.Errors.Add(string.Format("第 {0} 行未识别到工序名称。", i + 1));
+                    continue;
+                }
+
+                if (!uniqueNames.Add(name))
+                {
+                    result.SkippedCount++;
+                    continue;
+                }
+
+                try
+                {
+                    AddProcess(name);
+                    result.SuccessCount++;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    if (ex.Message.Contains("已存在"))
+                    {
+                        result.SkippedCount++;
+                    }
+                    else
+                    {
+                        result.FailedCount++;
+                        result.Errors.Add(string.Format("第 {0} 行导入失败（{1}）：{2}", i + 1, name, ex.Message));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.FailedCount++;
+                    result.Errors.Add(string.Format("第 {0} 行导入失败（{1}）：{2}", i + 1, name, ex.Message));
+                }
+            }
+
+            WriteSystemLog("Employee", string.Format("工序批量导入完成：成功 {0}，跳过 {1}，失败 {2}", result.SuccessCount, result.SkippedCount, result.FailedCount));
+            return result;
+        }
+
+=======
+>>>>>>> main
         public static void RenameProcess(string oldName, string newName)
         {
             if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName))
@@ -931,6 +1009,22 @@ VALUES (@LockerID, @Location, @Type, 0)";
         }
     }
 
+<<<<<<< codex/start-development-based-on-documentation-2dnqub
+    public class ProcessImportResult
+    {
+        public int SuccessCount { get; set; }
+        public int SkippedCount { get; set; }
+        public int FailedCount { get; set; }
+        public List<string> Errors { get; private set; }
+
+        public ProcessImportResult()
+        {
+            Errors = new List<string>();
+        }
+    }
+
+=======
+>>>>>>> main
     public class EmployeeEditModel
     {
         public string EmpNo { get; set; }

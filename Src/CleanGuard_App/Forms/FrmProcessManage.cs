@@ -13,6 +13,10 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnDelete = new Button();
         private readonly Button _btnRename = new Button();
         private readonly Button _btnRefresh = new Button();
+<<<<<<< codex/start-development-based-on-documentation-2dnqub
+        private readonly Button _btnImport = new Button();
+=======
+>>>>>>> main
 
         public FrmProcessManage()
         {
@@ -51,7 +55,16 @@ namespace CleanGuard_App.Forms
             _btnRefresh.Click += (s, e) => LoadProcesses();
             Controls.Add(_btnRefresh);
 
+<<<<<<< codex/start-development-based-on-documentation-2dnqub
+            _btnImport.Text = "批量导入";
+            _btnImport.SetBounds(20, 460, 90, 28);
+            _btnImport.Click += (s, e) => ImportCsv();
+            Controls.Add(_btnImport);
+
+            _grid.SetBounds(20, 65, 620, 385);
+=======
             _grid.SetBounds(20, 65, 620, 390);
+>>>>>>> main
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -68,6 +81,41 @@ namespace CleanGuard_App.Forms
         }
 
 
+<<<<<<< codex/start-development-based-on-documentation-2dnqub
+
+        private void ImportCsv()
+        {
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "CSV 文件|*.csv|文本文件|*.txt";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var result = SQLiteHelper.ImportProcessesFromCsv(dialog.FileName);
+                    LoadProcesses();
+                    var message = string.Format("导入完成。成功 {0}，跳过 {1}，失败 {2}", result.SuccessCount, result.SkippedCount, result.FailedCount);
+                    if (result.Errors.Count > 0)
+                    {
+                        message += Environment.NewLine + Environment.NewLine +
+                                   "失败明细（前5条）：" + Environment.NewLine +
+                                   string.Join(Environment.NewLine, result.Errors.GetRange(0, Math.Min(5, result.Errors.Count)).ToArray());
+                    }
+
+                    MessageBox.Show(message, "导入结果", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message, "导入失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+        }
+
+=======
+>>>>>>> main
         private void FillSelectedToInput()
         {
             if (_grid.SelectedRows.Count <= 0)
