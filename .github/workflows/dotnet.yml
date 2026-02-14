@@ -43,14 +43,20 @@ jobs:
       - name: Package (${{ matrix.rid }})
         shell: pwsh
         run: |
-          $src = "Output"
-          if (-not (Test-Path $src)) {
-            throw "Build output folder not found: $src"
-          }
-
           $stage = "artifacts/CleanGuard-${{ matrix.rid }}"
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
-          Copy-Item -Path "$src/*" -Destination $stage -Recurse -Force
+
+          $singleExe = "Output/CleanGuard_App.exe"
+          if (-not (Test-Path $singleExe)) {
+            throw "Single-file exe not found: $singleExe"
+          }
+
+          Copy-Item -Path $singleExe -Destination "$stage/CleanGuard.exe" -Force
+
+          $config = "Output/CleanGuard_App.exe.config"
+          if (Test-Path $config) {
+            Copy-Item -Path $config -Destination "$stage/CleanGuard.exe.config" -Force
+          }
 
           $zip = "artifacts/CleanGuard-${{ matrix.rid }}.zip"
           if (Test-Path $zip) { Remove-Item $zip -Force }
