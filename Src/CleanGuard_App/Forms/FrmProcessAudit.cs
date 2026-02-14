@@ -96,6 +96,7 @@ namespace CleanGuard_App.Forms
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            _grid.RowPrePaint += (s, e) => ApplyRowStyleByOperation(e.RowIndex);
             Controls.Add(_grid);
 
             _lblStats.SetBounds(20, 66, 1120, 20);
@@ -166,6 +167,37 @@ namespace CleanGuard_App.Forms
             ApplyFilter();
         }
 
+
+
+        private void ApplyRowStyleByOperation(int rowIndex)
+        {
+            if (rowIndex < 0 || rowIndex >= _grid.Rows.Count)
+            {
+                return;
+            }
+
+            var row = _grid.Rows[rowIndex];
+            object cellValue = row.Cells["内容"].Value;
+            string message = cellValue == null ? string.Empty : cellValue.ToString();
+
+            row.DefaultCellStyle.BackColor = System.Drawing.Color.White;
+            if (message.StartsWith("新增工序字典:", StringComparison.Ordinal))
+            {
+                row.DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(230, 255, 230);
+            }
+            else if (message.StartsWith("删除工序字典:", StringComparison.Ordinal))
+            {
+                row.DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(255, 235, 235);
+            }
+            else if (message.StartsWith("重命名工序字典:", StringComparison.Ordinal))
+            {
+                row.DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(235, 245, 255);
+            }
+            else if (message.StartsWith("工序批量导入完成", StringComparison.Ordinal))
+            {
+                row.DefaultCellStyle.BackColor = System.Drawing.Color.FromArgb(255, 250, 220);
+            }
+        }
 
         private void UpdateStats(DataView view)
         {
