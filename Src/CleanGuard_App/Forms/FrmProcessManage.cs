@@ -11,6 +11,7 @@ namespace CleanGuard_App.Forms
         private readonly TextBox _txtProcess = new TextBox();
         private readonly Button _btnAdd = new Button();
         private readonly Button _btnDelete = new Button();
+        private readonly Button _btnRename = new Button();
         private readonly Button _btnRefresh = new Button();
 
         public FrmProcessManage()
@@ -40,8 +41,13 @@ namespace CleanGuard_App.Forms
             _btnDelete.Click += (s, e) => DeleteSelected();
             Controls.Add(_btnDelete);
 
+            _btnRename.Text = "重命名";
+            _btnRename.SetBounds(490, 20, 80, 28);
+            _btnRename.Click += (s, e) => RenameSelected();
+            Controls.Add(_btnRename);
+
             _btnRefresh.Text = "刷新";
-            _btnRefresh.SetBounds(490, 20, 70, 28);
+            _btnRefresh.SetBounds(580, 20, 60, 28);
             _btnRefresh.Click += (s, e) => LoadProcesses();
             Controls.Add(_btnRefresh);
 
@@ -51,6 +57,7 @@ namespace CleanGuard_App.Forms
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             _grid.MultiSelect = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            _grid.SelectionChanged += (s, e) => FillSelectedToInput();
             Controls.Add(_grid);
         }
 
@@ -58,6 +65,64 @@ namespace CleanGuard_App.Forms
         {
             DataTable table = SQLiteHelper.QueryProcessesTable();
             _grid.DataSource = table;
+        }
+
+
+        private void FillSelectedToInput()
+        {
+            if (_grid.SelectedRows.Count <= 0)
+            {
+                return;
+            }
+
+            string name = Convert.ToString(_grid.SelectedRows[0].Cells["工序名称"].Value);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                _txtProcess.Text = name;
+            }
+        }
+
+        private void RenameSelected()
+        {
+            if (_grid.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("请先选择要重命名的工序。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string oldName = Convert.ToString(_grid.SelectedRows[0].Cells["工序名称"].Value);
+            string newName = (_txtProcess.Text ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(oldName))
+            {
+                MessageBox.Show("未识别到原工序名称。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                MessageBox.Show("请输入新的工序名称。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                "确认将工序“" + oldName + "”重命名为“" + newName + "”？\n已分配该工序的员工将自动同步更新。",
+                "重命名确认",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+            if (confirm != DialogResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                SQLiteHelper.RenameProcess(oldName, newName);
+                LoadProcesses();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "重命名失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void AddProcess()

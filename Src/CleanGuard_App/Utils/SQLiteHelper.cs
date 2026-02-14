@@ -214,6 +214,74 @@ ORDER BY Status DESC, Name;";
             WriteSystemLog("Employee", "删除工序字典: " + name);
         }
 
+        public static void RenameProcess(string oldName, string newName)
+        {
+            if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName))
+            {
+                throw new ArgumentException("原工序和新工序名称均不能为空。");
+            }
+
+            string from = oldName.Trim();
+            string to = newName.Trim();
+            if (string.Equals(from, to, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("新工序名称与原名称相同，无需修改。");
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var tx = conn.BeginTransaction())
+                {
+                    using (var checkOld = conn.CreateCommand())
+                    {
+                        checkOld.Transaction = tx;
+                        checkOld.CommandText = "SELECT COUNT(1) FROM T_Process WHERE Name = @Name";
+                        checkOld.Parameters.AddWithValue("@Name", from);
+                        int exists = Convert.ToInt32(checkOld.ExecuteScalar());
+                        if (exists <= 0)
+                        {
+                            throw new InvalidOperationException("未找到原工序，无法重命名。");
+                        }
+                    }
+
+                    using (var checkNew = conn.CreateCommand())
+                    {
+                        checkNew.Transaction = tx;
+                        checkNew.CommandText = "SELECT COUNT(1) FROM T_Process WHERE Name = @Name";
+                        checkNew.Parameters.AddWithValue("@Name", to);
+                        int exists = Convert.ToInt32(checkNew.ExecuteScalar());
+                        if (exists > 0)
+                        {
+                            throw new InvalidOperationException("新工序名称已存在，请更换后重试。");
+                        }
+                    }
+
+                    using (var updProcess = conn.CreateCommand())
+                    {
+                        updProcess.Transaction = tx;
+                        updProcess.CommandText = "UPDATE T_Process SET Name = @NewName WHERE Name = @OldName";
+                        updProcess.Parameters.AddWithValue("@NewName", to);
+                        updProcess.Parameters.AddWithValue("@OldName", from);
+                        updProcess.ExecuteNonQuery();
+                    }
+
+                    using (var updEmployees = conn.CreateCommand())
+                    {
+                        updEmployees.Transaction = tx;
+                        updEmployees.CommandText = "UPDATE T_Employee SET Process = @NewName WHERE Process = @OldName";
+                        updEmployees.Parameters.AddWithValue("@NewName", to);
+                        updEmployees.Parameters.AddWithValue("@OldName", from);
+                        updEmployees.ExecuteNonQuery();
+                    }
+
+                    tx.Commit();
+                }
+            }
+
+            WriteSystemLog("Employee", "重命名工序字典: " + from + " -> " + to);
+        }
+
         public static string[] GetAvailableLockers(string location, string type)
         {
             var list = new List<string>();
