@@ -462,6 +462,44 @@ WHERE EmpNo = @EmpNo";
             CaptureLockerSnapshot("Restore");
         }
 
+        public static void DeleteEmployee(string empNo)
+        {
+            var info = GetEmployeeLockerInfo(empNo);
+            if (info == null)
+            {
+                throw new InvalidOperationException("未找到该员工。");
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var tx = conn.BeginTransaction())
+                {
+                    MarkLockerOccupied(conn, tx, info.Locker1FClothes, 0);
+                    MarkLockerOccupied(conn, tx, info.Locker1FShoe, 0);
+                    MarkLockerOccupied(conn, tx, info.Locker2FClothes, 0);
+                    MarkLockerOccupied(conn, tx, info.Locker2FShoe, 0);
+
+                    using (var cmd = conn.CreateCommand())
+                    {
+                        cmd.Transaction = tx;
+                        cmd.CommandText = "DELETE FROM T_Employee WHERE EmpNo = @EmpNo";
+                        cmd.Parameters.AddWithValue("@EmpNo", empNo);
+                        int affected = cmd.ExecuteNonQuery();
+                        if (affected <= 0)
+                        {
+                            throw new InvalidOperationException("删除失败：员工记录不存在或已被删除。");
+                        }
+                    }
+
+                    tx.Commit();
+                }
+            }
+
+            WriteSystemLog("Employee", $"删除员工成功: {info.EmpNo}-{info.Name}");
+            CaptureLockerSnapshot("DeleteEmployee");
+        }
+
         public static void CaptureLockerSnapshot(string source)
         {
             var summary = GetLockerSummary();

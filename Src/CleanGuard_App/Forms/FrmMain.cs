@@ -14,6 +14,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnEdit = new Button();
         private readonly Button _btnResign = new Button();
         private readonly Button _btnRestore = new Button();
+        private readonly Button _btnDelete = new Button();
         private readonly Button _btnPrintLabel = new Button();
         private readonly Button _btnLockerMap = new Button();
         private readonly Button _btnImport = new Button();
@@ -61,23 +62,28 @@ namespace CleanGuard_App.Forms
             _btnRestore.Click += (s, e) => RestoreSelectedEmployee();
             Controls.Add(_btnRestore);
 
+            _btnDelete.Text = "删除员工";
+            _btnDelete.SetBounds(710, 20, 90, 30);
+            _btnDelete.Click += (s, e) => DeleteSelectedEmployee();
+            Controls.Add(_btnDelete);
+
             _btnPrintLabel.Text = "打印标签";
-            _btnPrintLabel.SetBounds(710, 20, 90, 30);
+            _btnPrintLabel.SetBounds(810, 20, 90, 30);
             _btnPrintLabel.Click += (s, e) => PrintSelectedEmployeeLabel();
             Controls.Add(_btnPrintLabel);
 
             _btnImport.Text = "数据导入";
-            _btnImport.SetBounds(810, 20, 100, 30);
+            _btnImport.SetBounds(910, 20, 100, 30);
             _btnImport.Click += (s, e) => OpenImportForm();
             Controls.Add(_btnImport);
 
             _btnLockerMap.Text = "柜位分布图";
-            _btnLockerMap.SetBounds(920, 20, 120, 30);
+            _btnLockerMap.SetBounds(1020, 20, 120, 30);
             _btnLockerMap.Click += (s, e) => OpenLockerChart();
             Controls.Add(_btnLockerMap);
 
             _btnLogs.Text = "系统日志";
-            _btnLogs.SetBounds(1050, 20, 90, 30);
+            _btnLogs.SetBounds(1150, 20, 90, 30);
             _btnLogs.Click += (s, e) => OpenSystemLogs();
             Controls.Add(_btnLogs);
 
@@ -217,6 +223,48 @@ namespace CleanGuard_App.Forms
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message, "复职失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void DeleteSelectedEmployee()
+        {
+            if (_grid.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string empNo = Convert.ToString(_grid.SelectedRows[0].Cells["工号"].Value);
+            var info = SQLiteHelper.GetEmployeeLockerInfo(empNo);
+            if (info == null)
+            {
+                MessageBox.Show("未找到该员工。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string message =
+                $"确认彻底删除员工 {info.Name} ({info.EmpNo}) 吗？\n" +
+                "该操作不可恢复，并将释放以下资源：\n" +
+                $"1F衣柜: {DisplayLocker(info.Locker1FClothes)}\n" +
+                $"1F鞋柜: {DisplayLocker(info.Locker1FShoe)}\n" +
+                $"2F衣柜: {DisplayLocker(info.Locker2FClothes)}\n" +
+                $"2F鞋柜: {DisplayLocker(info.Locker2FShoe)}";
+
+            var result = MessageBox.Show(message, "删除确认", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (result != DialogResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                SQLiteHelper.DeleteEmployee(empNo);
+                LoadEmployeeData(_txtSearch.Text.Trim());
+                MessageBox.Show("员工删除成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "删除失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
