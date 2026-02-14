@@ -108,11 +108,27 @@ namespace CleanGuard_App.Forms
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
             };
 
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "序号", HeaderText = "序号", ReadOnly = true, FillWeight = 20 });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "尺码", HeaderText = "尺码", FillWeight = 35 });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "领用日期", HeaderText = "领用日期(yyyy-MM-dd)", FillWeight = 45 });
+            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "序号", HeaderText = "序号", ReadOnly = true, FillWeight = 15 });
+            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "尺码", HeaderText = "尺码", FillWeight = 25 });
+            if (NeedCodeColumn(category))
+            {
+                grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "编码", HeaderText = "编码", FillWeight = 30 });
+            }
+            if (NeedConditionColumn(category))
+            {
+                var conditionColumn = new DataGridViewComboBoxColumn
+                {
+                    Name = "新旧",
+                    HeaderText = "新旧",
+                    FillWeight = 20,
+                    FlatStyle = FlatStyle.Flat
+                };
+                conditionColumn.Items.AddRange("新", "旧");
+                grid.Columns.Add(conditionColumn);
+            }
+            grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "领用日期", HeaderText = "领用日期(yyyy-MM-dd)", FillWeight = 30 });
 
-            btnAdd.Click += (s, e) => AddItemRow(grid, string.Empty, DateTime.Now.ToString("yyyy-MM-dd"));
+            btnAdd.Click += (s, e) => AddItemRow(grid, category, string.Empty, string.Empty, string.Empty, DateTime.Now.ToString("yyyy-MM-dd"));
             btnRemove.Click += (s, e) => RemoveSelectedRow(grid);
 
             tab.Controls.Add(btnAdd);
@@ -121,10 +137,20 @@ namespace CleanGuard_App.Forms
             _itemGrids[category] = grid;
         }
 
-        private static void AddItemRow(DataGridView grid, string size, string issueDate)
+        private static void AddItemRow(DataGridView grid, string category, string size, string itemCode, string itemCondition, string issueDate)
         {
             int index = grid.Rows.Count + 1;
-            grid.Rows.Add(index, size ?? string.Empty, issueDate ?? string.Empty);
+            var values = new List<object> { index, size ?? string.Empty };
+            if (NeedCodeColumn(category))
+            {
+                values.Add(itemCode ?? string.Empty);
+            }
+            if (NeedConditionColumn(category))
+            {
+                values.Add(string.IsNullOrWhiteSpace(itemCondition) ? "新" : itemCondition);
+            }
+            values.Add(issueDate ?? string.Empty);
+            grid.Rows.Add(values.ToArray());
         }
 
         private static void RemoveSelectedRow(DataGridView grid)
@@ -192,7 +218,7 @@ namespace CleanGuard_App.Forms
                         continue;
                     }
 
-                    AddItemRow(grid, item.Size, item.IssueDate);
+                    AddItemRow(grid, category, item.Size, item.ItemCode, item.ItemCondition, item.IssueDate);
                     grid.Rows[grid.Rows.Count - 1].Cells["序号"].Value = slot;
                     slot++;
                 }
@@ -263,6 +289,8 @@ namespace CleanGuard_App.Forms
                     }
 
                     string size = Convert.ToString(row.Cells["尺码"].Value);
+                    string itemCode = NeedCodeColumn(category) ? Convert.ToString(row.Cells["编码"].Value) : string.Empty;
+                    string itemCondition = NeedConditionColumn(category) ? Convert.ToString(row.Cells["新旧"].Value) : string.Empty;
                     string issueDate = Convert.ToString(row.Cells["领用日期"].Value);
                     if (!string.IsNullOrWhiteSpace(issueDate))
                     {
@@ -275,7 +303,7 @@ namespace CleanGuard_App.Forms
                         issueDate = date.ToString("yyyy-MM-dd");
                     }
 
-                    if (string.IsNullOrWhiteSpace(size) && string.IsNullOrWhiteSpace(issueDate))
+                    if (string.IsNullOrWhiteSpace(size) && string.IsNullOrWhiteSpace(itemCode) && string.IsNullOrWhiteSpace(itemCondition) && string.IsNullOrWhiteSpace(issueDate))
                     {
                         continue;
                     }
@@ -285,6 +313,8 @@ namespace CleanGuard_App.Forms
                         Category = category,
                         SlotIndex = slot,
                         Size = string.IsNullOrWhiteSpace(size) ? null : size.Trim(),
+                        ItemCode = string.IsNullOrWhiteSpace(itemCode) ? null : itemCode.Trim(),
+                        ItemCondition = string.IsNullOrWhiteSpace(itemCondition) ? null : itemCondition.Trim(),
                         IssueDate = string.IsNullOrWhiteSpace(issueDate) ? null : issueDate
                     });
                     slot++;
@@ -292,6 +322,18 @@ namespace CleanGuard_App.Forms
             }
 
             return list;
+        }
+
+        private static bool NeedCodeColumn(string category)
+        {
+            return string.Equals(category, "无尘服", StringComparison.Ordinal) ||
+                   string.Equals(category, "洁净帽", StringComparison.Ordinal);
+        }
+
+        private static bool NeedConditionColumn(string category)
+        {
+            return string.Equals(category, "安全鞋", StringComparison.Ordinal) ||
+                   string.Equals(category, "帆布鞋", StringComparison.Ordinal);
         }
 
         private static void BindLockerCombo(ComboBox comboBox, string location, string type, string selectedLocker)

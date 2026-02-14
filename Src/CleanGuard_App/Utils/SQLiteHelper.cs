@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS T_Emp_Items (
     Category TEXT NOT NULL,
     SlotIndex INTEGER,
     Size TEXT,
+    ItemCode TEXT,
+    ItemCondition TEXT,
     IssueDate TEXT,
     FOREIGN KEY(EmpID) REFERENCES T_Employee(ID) ON DELETE CASCADE
 );
@@ -78,6 +80,9 @@ CREATE TABLE IF NOT EXISTS T_LockerSnapshot (
     Source TEXT
 );
 ");
+
+            EnsureColumnExists("T_Emp_Items", "ItemCode", "TEXT");
+            EnsureColumnExists("T_Emp_Items", "ItemCondition", "TEXT");
 
             SeedDefaultLockers();
             CaptureLockerSnapshot("Startup");
@@ -874,7 +879,7 @@ LIMIT @limit;";
             using (var cmd = conn.CreateCommand())
             {
                 conn.Open();
-                cmd.CommandText = @"SELECT I.Category, I.SlotIndex, I.Size, I.IssueDate
+                cmd.CommandText = @"SELECT I.Category, I.SlotIndex, I.Size, I.ItemCode, I.ItemCondition, I.IssueDate
 FROM T_Emp_Items I
 INNER JOIN T_Employee E ON E.ID = I.EmpID
 WHERE E.EmpNo = @EmpNo
@@ -889,6 +894,8 @@ ORDER BY I.Category, I.SlotIndex";
                             Category = reader["Category"].ToString(),
                             SlotIndex = Convert.ToInt32(reader["SlotIndex"]),
                             Size = reader["Size"].ToString(),
+                            ItemCode = reader["ItemCode"].ToString(),
+                            ItemCondition = reader["ItemCondition"].ToString(),
                             IssueDate = reader["IssueDate"].ToString()
                         });
                     }
@@ -940,12 +947,14 @@ ORDER BY I.Category, I.SlotIndex";
                             using (var insertCmd = conn.CreateCommand())
                             {
                                 insertCmd.Transaction = tx;
-                                insertCmd.CommandText = @"INSERT INTO T_Emp_Items(EmpID, Category, SlotIndex, Size, IssueDate)
-VALUES (@EmpID, @Category, @SlotIndex, @Size, @IssueDate)";
+                                insertCmd.CommandText = @"INSERT INTO T_Emp_Items(EmpID, Category, SlotIndex, Size, ItemCode, ItemCondition, IssueDate)
+VALUES (@EmpID, @Category, @SlotIndex, @Size, @ItemCode, @ItemCondition, @IssueDate)";
                                 insertCmd.Parameters.AddWithValue("@EmpID", empId);
                                 insertCmd.Parameters.AddWithValue("@Category", item.Category ?? string.Empty);
                                 insertCmd.Parameters.AddWithValue("@SlotIndex", item.SlotIndex);
                                 insertCmd.Parameters.AddWithValue("@Size", NormalizeNull(item.Size));
+                                insertCmd.Parameters.AddWithValue("@ItemCode", NormalizeNull(item.ItemCode));
+                                insertCmd.Parameters.AddWithValue("@ItemCondition", NormalizeNull(item.ItemCondition));
                                 insertCmd.Parameters.AddWithValue("@IssueDate", NormalizeNull(item.IssueDate));
                                 insertCmd.ExecuteNonQuery();
                             }
@@ -957,6 +966,61 @@ VALUES (@EmpID, @Category, @SlotIndex, @Size, @IssueDate)";
             }
 
             WriteSystemLog("Employee", $"更新劳保用品信息: {empNo}, 数量={(items == null ? 0 : items.Count)}");
+        }
+
+        public static void ImportLockers(List<LockerImportRow> rows)
+        {
+            if (rows == null || rows.Count == 0)
+            {
+                throw new InvalidOperationException("导入数据为空。");
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            {
+                conn.Open();
+                using (var tx = conn.BeginTransaction())
+                {
+                    using (var clearLockers = conn.CreateCommand())
+                    {
+                        clearLockers.Transaction = tx;
+                        clearLockers.CommandText = "DELETE FROM T_Lockers";
+                        clearLockers.ExecuteNonQuery();
+                    }
+
+                    foreach (var row in rows)
+                    {
+                        using (var insert = conn.CreateCommand())
+                        {
+                            insert.Transaction = tx;
+                            insert.CommandText = @"INSERT OR REPLACE INTO T_Lockers (LockerID, Location, Type, IsOccupied, Remark)
+VALUES (@LockerID, @Location, @Type, 0, @Remark)";
+                            insert.Parameters.AddWithValue("@LockerID", row.LockerID);
+                            insert.Parameters.AddWithValue("@Location", row.Location);
+                            insert.Parameters.AddWithValue("@Type", row.Type);
+                            insert.Parameters.AddWithValue("@Remark", NormalizeNull(row.Remark));
+                            insert.ExecuteNonQuery();
+                        }
+                    }
+
+                    using (var markOccupied = conn.CreateCommand())
+                    {
+                        markOccupied.Transaction = tx;
+                        markOccupied.CommandText = @"UPDATE T_Lockers SET IsOccupied = 1
+WHERE LockerID IN (
+    SELECT Locker_1F_Clothes FROM T_Employee WHERE Status = 1 AND Locker_1F_Clothes IS NOT NULL
+    UNION SELECT Locker_1F_Shoe FROM T_Employee WHERE Status = 1 AND Locker_1F_Shoe IS NOT NULL
+    UNION SELECT Locker_2F_Clothes FROM T_Employee WHERE Status = 1 AND Locker_2F_Clothes IS NOT NULL
+    UNION SELECT Locker_2F_Shoe FROM T_Employee WHERE Status = 1 AND Locker_2F_Shoe IS NOT NULL
+)";
+                        markOccupied.ExecuteNonQuery();
+                    }
+
+                    tx.Commit();
+                }
+            }
+
+            WriteSystemLog("Import", string.Format("柜位批量导入完成：共 {0} 条（已去除原始编码字段）", rows.Count));
+            CaptureLockerSnapshot("ImportLockers");
         }
 
         public static void WriteSystemLog(string logType, string message)
@@ -1058,6 +1122,29 @@ VALUES (@LockerID, @Location, @Type, 0)";
             }
         }
 
+        private static void EnsureColumnExists(string tableName, string columnName, string definition)
+        {
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = string.Format("PRAGMA table_info({0})", tableName);
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        if (string.Equals(Convert.ToString(reader["name"]), columnName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return;
+                        }
+                    }
+                }
+
+                cmd.CommandText = string.Format("ALTER TABLE {0} ADD COLUMN {1} {2}", tableName, columnName, definition);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         private static object NormalizeNull(string input)
         {
             return string.IsNullOrWhiteSpace(input) ? (object)DBNull.Value : input.Trim();
@@ -1110,7 +1197,17 @@ VALUES (@LockerID, @Location, @Type, 0)";
         public string Category { get; set; }
         public int SlotIndex { get; set; }
         public string Size { get; set; }
+        public string ItemCode { get; set; }
+        public string ItemCondition { get; set; }
         public string IssueDate { get; set; }
+    }
+
+    public class LockerImportRow
+    {
+        public string LockerID { get; set; }
+        public string Location { get; set; }
+        public string Type { get; set; }
+        public string Remark { get; set; }
     }
 
     public class EmployeeLockerInfo
