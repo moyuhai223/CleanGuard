@@ -13,6 +13,8 @@ namespace CleanGuard_App.Forms
         private readonly TextBox _txtRemark = new TextBox();
         private readonly Button _btnQuery = new Button();
         private readonly Button _btnSaveRemark = new Button();
+        private readonly Button _btnDownloadTemplate = new Button();
+        private readonly Button _btnImportLockers = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
         public FrmLockerManage()
@@ -60,7 +62,17 @@ namespace CleanGuard_App.Forms
             _btnSaveRemark.Click += (s, e) => SaveRemark();
             Controls.Add(_btnSaveRemark);
 
-            _grid.SetBounds(20, 65, 920, 500);
+            _btnDownloadTemplate.Text = "下载柜位模板";
+            _btnDownloadTemplate.SetBounds(575, 560, 130, 30);
+            _btnDownloadTemplate.Click += (s, e) => DownloadLockerTemplate();
+            Controls.Add(_btnDownloadTemplate);
+
+            _btnImportLockers.Text = "导入柜位数据";
+            _btnImportLockers.SetBounds(715, 560, 130, 30);
+            _btnImportLockers.Click += (s, e) => ImportLockers();
+            Controls.Add(_btnImportLockers);
+
+            _grid.SetBounds(20, 65, 920, 485);
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -111,6 +123,51 @@ namespace CleanGuard_App.Forms
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message, "保存失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void DownloadLockerTemplate()
+        {
+            using (var dialog = new SaveFileDialog())
+            {
+                dialog.Filter = "Excel 文件|*.xlsx|CSV 文件|*.csv";
+                dialog.FileName = "CleanGuard_柜位导入模板.xlsx";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                ImportHelper.ExportLockerTemplate(dialog.FileName);
+                MessageBox.Show("柜位模板下载成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void ImportLockers()
+        {
+            var tip = "导入将按文件重建柜位列表，并忽略‘原始编码’字段（若存在）。是否继续？";
+            if (MessageBox.Show(tip, "确认导入", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Filter = "Excel 文件|*.xlsx|CSV 文件|*.csv";
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    return;
+                }
+
+                var result = ImportHelper.ImportLockersFromFile(dialog.FileName);
+                LoadLockers();
+                var msg = string.Format("柜位导入完成：成功 {0}，失败 {1}", result.SuccessCount, result.FailedCount);
+                if (result.Errors.Count > 0)
+                {
+                    msg += Environment.NewLine + string.Join(Environment.NewLine, result.Errors.ToArray());
+                }
+
+                MessageBox.Show(msg, "导入结果", MessageBoxButtons.OK,
+                    result.FailedCount > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             }
         }
     }

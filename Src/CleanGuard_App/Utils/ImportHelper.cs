@@ -13,6 +13,10 @@ namespace CleanGuard_App.Utils
         {
             "工号", "姓名", "工序", "1F衣柜", "1F鞋柜", "2F衣柜", "2F鞋柜", "无尘服1尺码", "鞋码"
         };
+        public static readonly string[] LockerTemplateHeaders =
+        {
+            "柜号", "楼层", "类型", "异常备注"
+        };
 
         public static void ExportTemplate(string filePath)
         {
@@ -35,6 +39,114 @@ namespace CleanGuard_App.Utils
             }
 
             return ImportFromCsv(filePath);
+        }
+
+        public static void ExportLockerTemplate(string filePath)
+        {
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext == ".xlsx")
+            {
+                ExportLockerTemplateXlsx(filePath);
+                return;
+            }
+
+            var sb = new StringBuilder();
+            sb.AppendLine(string.Join(",", LockerTemplateHeaders));
+            sb.AppendLine("1F-C-01,1F,衣柜,");
+            sb.AppendLine("1F-S-01,1F,鞋柜,");
+            File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+        }
+
+        public static ProcessImportResult ImportLockersFromFile(string filePath)
+        {
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext == ".xlsx")
+            {
+                return ImportLockersFromXlsx(filePath);
+            }
+
+            return ImportLockersFromCsv(filePath);
+        }
+
+        public static ProcessImportResult ImportLockersFromCsv(string filePath)
+        {
+            var result = new ProcessImportResult();
+            if (!File.Exists(filePath))
+            {
+                result.Errors.Add("导入文件不存在。");
+                return result;
+            }
+
+            var rows = new List<LockerImportRow>();
+            string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
+            for (int i = 1; i < lines.Length; i++)
+            {
+                string line = (lines[i] ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                TryParseLockerRow(SplitCsvLine(line), i + 1, result, rows);
+            }
+
+            FinalizeLockerImport(filePath, result, rows);
+            return result;
+        }
+
+        public static ProcessImportResult ImportLockersFromXlsx(string filePath)
+        {
+            var result = new ProcessImportResult();
+            if (!File.Exists(filePath))
+            {
+                result.Errors.Add("导入文件不存在。");
+                return result;
+            }
+
+            var rows = new List<LockerImportRow>();
+            using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                var workbook = new XSSFWorkbook(fs);
+                ISheet sheet = workbook.NumberOfSheets > 0 ? workbook.GetSheetAt(0) : null;
+                if (sheet == null)
+                {
+                    result.Errors.Add("xlsx 文件无可用工作表。");
+                    return result;
+                }
+
+                for (int r = 1; r <= sheet.LastRowNum; r++)
+                {
+                    IRow row = sheet.GetRow(r);
+                    if (row == null)
+                    {
+                        continue;
+                    }
+
+                    string[] cells = ReadRowCells(row);
+                    if (IsEmptyRow(cells))
+                    {
+                        continue;
+                    }
+
+                    TryParseLockerRow(cells, r + 1, result, rows);
+                }
+            }
+
+            FinalizeLockerImport(filePath, result, rows);
+            return result;
+        }
+
+        public static void ExportLockerTemplateXlsx(string filePath)
+        {
+            var workbook = new XSSFWorkbook();
+            using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+            {
+                ISheet sheet = workbook.CreateSheet("柜位导入模板");
+                WriteCellsToRow(sheet.CreateRow(0), LockerTemplateHeaders);
+                WriteCellsToRow(sheet.CreateRow(1), new[] { "1F-C-01", "1F", "衣柜", string.Empty });
+                WriteCellsToRow(sheet.CreateRow(2), new[] { "1F-S-01", "1F", "鞋柜", string.Empty });
+                workbook.Write(fs);
+            }
         }
 
         public static void ExportTemplateCsv(string filePath)
@@ -240,6 +352,76 @@ namespace CleanGuard_App.Utils
             {
                 result.FailedCount++;
                 result.Errors.Add(string.Format("第 {0} 行导入失败（工号: {1}）：{2}", rowNumber, SafeCell(cells, 0), ex.Message));
+            }
+        }
+
+        private static void TryParseLockerRow(string[] cells, int rowNumber, ProcessImportResult result, List<LockerImportRow> rows)
+        {
+            int offset = 0;
+            string secondCell = SafeCell(cells, 1);
+            if (secondCell == "1F" || secondCell == "2F")
+            {
+                offset = 0;
+            }
+            else if (SafeCell(cells, 2) == "1F" || SafeCell(cells, 2) == "2F")
+            {
+                // 兼容旧模板：第1列为原始编码
+                offset = 1;
+            }
+
+            string lockerId = SafeCell(cells, offset + 0);
+            string location = SafeCell(cells, offset + 1);
+            string type = SafeCell(cells, offset + 2);
+            string remark = SafeCell(cells, offset + 3);
+
+            if (string.IsNullOrWhiteSpace(lockerId) || string.IsNullOrWhiteSpace(location) || string.IsNullOrWhiteSpace(type))
+            {
+                result.FailedCount++;
+                result.Errors.Add(string.Format("第 {0} 行导入失败：柜号/楼层/类型不能为空。", rowNumber));
+                return;
+            }
+
+            if (location != "1F" && location != "2F")
+            {
+                result.FailedCount++;
+                result.Errors.Add(string.Format("第 {0} 行导入失败：楼层仅支持 1F 或 2F。", rowNumber));
+                return;
+            }
+
+            if (type != "衣柜" && type != "鞋柜")
+            {
+                result.FailedCount++;
+                result.Errors.Add(string.Format("第 {0} 行导入失败：类型仅支持 衣柜 或 鞋柜。", rowNumber));
+                return;
+            }
+
+            rows.Add(new LockerImportRow
+            {
+                LockerID = lockerId,
+                Location = location,
+                Type = type,
+                Remark = remark
+            });
+            result.SuccessCount++;
+        }
+
+        private static void FinalizeLockerImport(string filePath, ProcessImportResult result, List<LockerImportRow> rows)
+        {
+            if (rows.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                SQLiteHelper.ImportLockers(rows);
+                SQLiteHelper.WriteSystemLog("Import", string.Format("柜位导入完成：文件={0}，成功 {1}，失败 {2}", Path.GetFileName(filePath), result.SuccessCount, result.FailedCount));
+            }
+            catch (Exception ex)
+            {
+                result.Errors.Add("保存柜位数据失败：" + ex.Message);
+                result.FailedCount += rows.Count;
+                result.SuccessCount = 0;
             }
         }
 
