@@ -68,6 +68,11 @@ jobs:
             Copy-Item -Path "Output/x64/SQLite.Interop.dll" -Destination "$stage/x64/SQLite.Interop.dll" -Force
           }
 
+          $sharpZipLib = "Output/ICSharpCode.SharpZipLib.dll"
+          if (Test-Path $sharpZipLib) {
+            Copy-Item -Path $sharpZipLib -Destination "$stage/ICSharpCode.SharpZipLib.dll" -Force
+          }
+
           $zip = "artifacts/CleanGuard-${{ matrix.rid }}.zip"
           if (Test-Path $zip) { Remove-Item $zip -Force }
           Compress-Archive -Path "$stage/*" -DestinationPath $zip
