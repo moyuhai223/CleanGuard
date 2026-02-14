@@ -80,10 +80,23 @@ namespace CleanGuard_App.Forms
                 return;
             }
 
-            DataView view = _rawTable.DefaultView;
-            string escaped = keyword.Replace("'", "''");
-            view.RowFilter = string.Format("内容 LIKE '%{0}%'", escaped);
-            _grid.DataSource = view;
+            try
+            {
+                DataView view = _rawTable.DefaultView;
+                string escaped = keyword.Replace("'", "''");
+                view.RowFilter = string.Format("内容 LIKE '%{0}%'", escaped);
+                _grid.DataSource = view;
+            }
+            catch (EvaluateException)
+            {
+                // If the filter expression is invalid, fall back to unfiltered data.
+                _grid.DataSource = _rawTable;
+            }
+            catch (SyntaxErrorException)
+            {
+                // If the filter expression is invalid, fall back to unfiltered data.
+                _grid.DataSource = _rawTable;
+            }
         }
 
         private void ExportCsv()
