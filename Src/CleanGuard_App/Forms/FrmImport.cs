@@ -107,14 +107,14 @@ namespace CleanGuard_App.Forms
 
             using (var dialog = new SaveFileDialog())
             {
-                dialog.Filter = "CSV 文件|*.csv";
-                dialog.FileName = "ImportErrors.csv";
+                dialog.Filter = "Excel 文件|*.xlsx|CSV 文件|*.csv";
+                dialog.FileName = "ImportErrors.xlsx";
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
                     return;
                 }
 
-                _lastResult.ExportErrorsCsv(dialog.FileName);
+                _lastResult.ExportErrors(dialog.FileName);
                 MessageBox.Show("失败明细已导出。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }

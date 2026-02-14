@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Reflection;
 using System.Text;
+using NPOI.SS.UserModel;
+using NPOI.XSSF.UserModel;
 
 namespace CleanGuard_App.Utils
 {
@@ -46,12 +47,7 @@ namespace CleanGuard_App.Utils
 
         public static ImportResult ImportFromCsv(string filePath)
         {
-            var result = new ImportResult
-            {
-                SourceFile = filePath,
-                ImportTime = DateTime.Now
-            };
-
+            var result = CreateResult(filePath);
             if (!File.Exists(filePath))
             {
                 result.Errors.Add("导入文件不存在。");
@@ -66,7 +62,6 @@ namespace CleanGuard_App.Utils
             }
 
             ValidateHeader(SplitCsvLine(lines[0]), result);
-
             for (int i = 1; i < lines.Length; i++)
             {
                 string line = lines[i].Trim();
@@ -75,8 +70,7 @@ namespace CleanGuard_App.Utils
                     continue;
                 }
 
-                string[] cells = SplitCsvLine(line);
-                ImportRow(cells, i + 1, result);
+                ImportRow(SplitCsvLine(line), i + 1, result);
             }
 
             SQLiteHelper.WriteSystemLog("Import", string.Format("CSV导入完成：文件={0}，成功 {1}，失败 {2}", Path.GetFileName(filePath), result.SuccessCount, result.FailedCount));
@@ -85,69 +79,29 @@ namespace CleanGuard_App.Utils
 
         public static ImportResult ImportFromXlsx(string filePath)
         {
-            var result = new ImportResult
-            {
-                SourceFile = filePath,
-                ImportTime = DateTime.Now
-            };
-
+            var result = CreateResult(filePath);
             if (!File.Exists(filePath))
             {
                 result.Errors.Add("导入文件不存在。");
                 return result;
             }
 
-            if (!TryImportFromXlsxByNpoi(filePath, result))
+            using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var workbook = new XSSFWorkbook(fs))
             {
-                result.Errors.Add("当前环境未检测到 NPOI，无法读取 xlsx。请先安装 NPOI 或改用 CSV 导入。");
-                return result;
-            }
-
-            SQLiteHelper.WriteSystemLog("Import", string.Format("XLSX导入完成：文件={0}，成功 {1}，失败 {2}", Path.GetFileName(filePath), result.SuccessCount, result.FailedCount));
-            return result;
-        }
-
-        private static bool TryImportFromXlsxByNpoi(string filePath, ImportResult result)
-        {
-            try
-            {
-                Type workbookType = Type.GetType("NPOI.XSSF.UserModel.XSSFWorkbook, NPOI.OOXML", false);
-                if (workbookType == null)
-                {
-                    return false;
-                }
-
-                object workbook;
-                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                {
-                    workbook = Activator.CreateInstance(workbookType, fs);
-                }
-
-                if (workbook == null)
-                {
-                    return false;
-                }
-
-                Type iWorkbookType = workbookType.GetInterface("IWorkbook");
-                MethodInfo getSheetAt = iWorkbookType != null ? iWorkbookType.GetMethod("GetSheetAt") : workbookType.GetMethod("GetSheetAt");
-                object sheet = getSheetAt.Invoke(workbook, new object[] { 0 });
+                ISheet sheet = workbook.NumberOfSheets > 0 ? workbook.GetSheetAt(0) : null;
                 if (sheet == null)
                 {
                     result.Errors.Add("xlsx 文件无可用工作表。");
-                    return true;
+                    return result;
                 }
 
-                Type sheetType = sheet.GetType();
-                PropertyInfo lastRowNumProp = sheetType.GetProperty("LastRowNum");
-                MethodInfo getRow = sheetType.GetMethod("GetRow");
-
-                object headerRow = getRow.Invoke(sheet, new object[] { 0 });
+                IRow headerRow = sheet.GetRow(0);
                 ValidateHeader(ReadRowCells(headerRow), result);
 
-                int lastRowNum = Convert.ToInt32(lastRowNumProp.GetValue(sheet, null));
-                for (int r = 1; r <= lastRowNum; r++)
+                for (int r = 1; r <= sheet.LastRowNum; r++)
                 {
-                    object row = getRow.Invoke(sheet, new object[] { r });
+                    IRow row = sheet.GetRow(r);
                     if (row == null)
                     {
                         continue;
@@ -161,86 +115,57 @@ namespace CleanGuard_App.Utils
 
                     ImportRow(cells, r + 1, result);
                 }
-
-                IDisposable disposable = workbook as IDisposable;
-                if (disposable != null)
-                {
-                    disposable.Dispose();
-                }
-
-                return true;
             }
-            catch (Exception ex)
-            {
-                result.Errors.Add("读取 xlsx 失败: " + ex.Message);
-                return true;
-            }
+
+            SQLiteHelper.WriteSystemLog("Import", string.Format("XLSX导入完成：文件={0}，成功 {1}，失败 {2}", Path.GetFileName(filePath), result.SuccessCount, result.FailedCount));
+            return result;
         }
 
-        private static void ExportTemplateXlsx(string filePath)
+        public static void ExportTemplateXlsx(string filePath)
         {
-            Type workbookType = Type.GetType("NPOI.XSSF.UserModel.XSSFWorkbook, NPOI.OOXML", false);
-            if (workbookType == null)
+            using (var workbook = new XSSFWorkbook())
             {
-                throw new InvalidOperationException("当前环境未检测到 NPOI，无法导出 xlsx 模板。请先安装 NPOI 或导出 CSV 模板。");
-            }
+                ISheet sheet = workbook.CreateSheet("导入模板");
+                WriteCellsToRow(sheet.CreateRow(0), TemplateHeaders);
+                WriteCellsToRow(sheet.CreateRow(1), new[] { "P001", "张三", "热切", "1F-C-01", "1F-S-01", "2F-C-01", "2F-S-01", "L", "42" });
 
-            object workbook = Activator.CreateInstance(workbookType);
-            Type iWorkbookType = workbookType.GetInterface("IWorkbook");
-            MethodInfo createSheet = iWorkbookType != null ? iWorkbookType.GetMethod("CreateSheet", new[] { typeof(string) }) : workbookType.GetMethod("CreateSheet", new[] { typeof(string) });
-            MethodInfo write = iWorkbookType != null ? iWorkbookType.GetMethod("Write", new[] { typeof(Stream) }) : workbookType.GetMethod("Write", new[] { typeof(Stream) });
-
-            object sheet = createSheet.Invoke(workbook, new object[] { "导入模板" });
-            Type sheetType = sheet.GetType();
-            MethodInfo createRow = sheetType.GetMethod("CreateRow");
-
-            object headerRow = createRow.Invoke(sheet, new object[] { 0 });
-            WriteCellsToRow(headerRow, TemplateHeaders);
-
-            object sampleRow = createRow.Invoke(sheet, new object[] { 1 });
-            WriteCellsToRow(sampleRow, new[] { "P001", "张三", "热切", "1F-C-01", "1F-S-01", "2F-C-01", "2F-S-01", "L", "42" });
-
-            using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
-            {
-                write.Invoke(workbook, new object[] { fs });
-            }
-
-            IDisposable disposable = workbook as IDisposable;
-            if (disposable != null)
-            {
-                disposable.Dispose();
+                using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+                {
+                    workbook.Write(fs);
+                }
             }
         }
 
-        private static void WriteCellsToRow(object row, string[] values)
+        private static ImportResult CreateResult(string filePath)
+        {
+            return new ImportResult
+            {
+                SourceFile = filePath,
+                ImportTime = DateTime.Now
+            };
+        }
+
+        private static void WriteCellsToRow(IRow row, string[] values)
         {
             if (row == null || values == null)
             {
                 return;
             }
 
-            Type rowType = row.GetType();
-            MethodInfo createCell = rowType.GetMethod("CreateCell", new[] { typeof(int) });
             for (int i = 0; i < values.Length; i++)
             {
-                object cell = createCell.Invoke(row, new object[] { i });
-                MethodInfo setCellValue = cell.GetType().GetMethod("SetCellValue", new[] { typeof(string) });
-                setCellValue.Invoke(cell, new object[] { values[i] });
+                row.CreateCell(i).SetCellValue(values[i] ?? string.Empty);
             }
         }
 
-        private static string[] ReadRowCells(object row)
+        private static string[] ReadRowCells(IRow row)
         {
             if (row == null)
             {
                 return new string[0];
             }
 
-            Type rowType = row.GetType();
-            PropertyInfo lastCellNumProp = rowType.GetProperty("LastCellNum");
-            MethodInfo getCell = rowType.GetMethod("GetCell", new[] { typeof(int) });
-
-            int lastCellNum = Convert.ToInt32(lastCellNumProp.GetValue(row, null));
+            int lastCellNum = row.LastCellNum;
             if (lastCellNum <= 0)
             {
                 return new string[0];
@@ -249,8 +174,8 @@ namespace CleanGuard_App.Utils
             var cells = new string[lastCellNum];
             for (int i = 0; i < lastCellNum; i++)
             {
-                object cell = getCell.Invoke(row, new object[] { i });
-                cells[i] = cell == null ? string.Empty : Convert.ToString(cell);
+                ICell cell = row.GetCell(i);
+                cells[i] = cell == null ? string.Empty : cell.ToString();
             }
 
             return cells;
@@ -375,6 +300,18 @@ namespace CleanGuard_App.Utils
         public DateTime ImportTime { get; set; }
         public List<string> Errors { get; } = new List<string>();
 
+        public void ExportErrors(string filePath)
+        {
+            string ext = (Path.GetExtension(filePath) ?? string.Empty).ToLowerInvariant();
+            if (ext == ".xlsx")
+            {
+                ExportErrorsXlsx(filePath);
+                return;
+            }
+
+            ExportErrorsCsv(filePath);
+        }
+
         public void ExportErrorsCsv(string filePath)
         {
             var sb = new StringBuilder();
@@ -388,6 +325,29 @@ namespace CleanGuard_App.Utils
             }
 
             File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+        }
+
+        public void ExportErrorsXlsx(string filePath)
+        {
+            using (var workbook = new XSSFWorkbook())
+            {
+                ISheet sheet = workbook.CreateSheet("失败明细");
+                var header = sheet.CreateRow(0);
+                header.CreateCell(0).SetCellValue("序号");
+                header.CreateCell(1).SetCellValue("错误信息");
+
+                for (int i = 0; i < Errors.Count; i++)
+                {
+                    var row = sheet.CreateRow(i + 1);
+                    row.CreateCell(0).SetCellValue(i + 1);
+                    row.CreateCell(1).SetCellValue(Errors[i] ?? string.Empty);
+                }
+
+                using (var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write))
+                {
+                    workbook.Write(fs);
+                }
+            }
         }
 
         private static string Escape(string text)
