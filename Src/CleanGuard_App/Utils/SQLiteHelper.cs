@@ -214,7 +214,6 @@ ORDER BY Status DESC, Name;";
             WriteSystemLog("Employee", "删除工序字典: " + name);
         }
 
-<<<<<<< codex/start-development-based-on-documentation-2dnqub
         public static ProcessImportResult ImportProcessesFromCsv(string filePath)
         {
             var result = new ProcessImportResult();
@@ -290,8 +289,7 @@ ORDER BY Status DESC, Name;";
             return result;
         }
 
-=======
->>>>>>> main
+
         public static void RenameProcess(string oldName, string newName)
         {
             if (string.IsNullOrWhiteSpace(oldName) || string.IsNullOrWhiteSpace(newName))
@@ -775,6 +773,30 @@ LIMIT @limit";
             return table;
         }
 
+        public static DataTable QueryProcessAuditLogs(int limit)
+        {
+            var table = new DataTable();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            using (var adapter = new SQLiteDataAdapter(cmd))
+            {
+                conn.Open();
+                cmd.CommandText = @"SELECT LogType AS 类型, Message AS 内容, LogTime AS 时间
+FROM T_SystemLog
+WHERE LogType = 'Employee'
+  AND (Message LIKE '新增工序字典:%' OR
+       Message LIKE '删除工序字典:%' OR
+       Message LIKE '重命名工序字典:%' OR
+       Message LIKE '工序批量导入完成%')
+ORDER BY LogTime DESC
+LIMIT @limit";
+                cmd.Parameters.AddWithValue("@limit", limit <= 0 ? 100 : limit);
+                adapter.Fill(table);
+            }
+
+            return table;
+        }
+
         public static DataTable QuerySystemLogs(string logType, int limit)
         {
             var table = new DataTable();
@@ -1009,7 +1031,6 @@ VALUES (@LockerID, @Location, @Type, 0)";
         }
     }
 
-<<<<<<< codex/start-development-based-on-documentation-2dnqub
     public class ProcessImportResult
     {
         public int SuccessCount { get; set; }
@@ -1023,8 +1044,7 @@ VALUES (@LockerID, @Location, @Type, 0)";
         }
     }
 
-=======
->>>>>>> main
+
     public class EmployeeEditModel
     {
         public string EmpNo { get; set; }

@@ -13,10 +13,10 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnDelete = new Button();
         private readonly Button _btnRename = new Button();
         private readonly Button _btnRefresh = new Button();
-<<<<<<< codex/start-development-based-on-documentation-2dnqub
         private readonly Button _btnImport = new Button();
-=======
->>>>>>> main
+        private readonly Button _btnAudit = new Button();
+        private readonly Button _btnImport = new Button();
+
 
         public FrmProcessManage()
         {
@@ -55,16 +55,18 @@ namespace CleanGuard_App.Forms
             _btnRefresh.Click += (s, e) => LoadProcesses();
             Controls.Add(_btnRefresh);
 
-<<<<<<< codex/start-development-based-on-documentation-2dnqub
             _btnImport.Text = "批量导入";
             _btnImport.SetBounds(20, 460, 90, 28);
             _btnImport.Click += (s, e) => ImportCsv();
             Controls.Add(_btnImport);
 
+            _btnAudit.Text = "审计视图";
+            _btnAudit.SetBounds(120, 460, 90, 28);
+            _btnAudit.Click += (s, e) => OpenAudit();
+            Controls.Add(_btnAudit);
+
             _grid.SetBounds(20, 65, 620, 385);
-=======
-            _grid.SetBounds(20, 65, 620, 390);
->>>>>>> main
+
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -81,7 +83,6 @@ namespace CleanGuard_App.Forms
         }
 
 
-<<<<<<< codex/start-development-based-on-documentation-2dnqub
 
         private void ImportCsv()
         {
@@ -114,8 +115,16 @@ namespace CleanGuard_App.Forms
             }
         }
 
-=======
->>>>>>> main
+
+        private void OpenAudit()
+        {
+            using (var form = new FrmProcessAudit())
+            {
+                form.ShowDialog(this);
+            }
+        }
+
+
         private void FillSelectedToInput()
         {
             if (_grid.SelectedRows.Count <= 0)

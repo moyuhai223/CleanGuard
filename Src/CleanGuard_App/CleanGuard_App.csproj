@@ -50,6 +50,7 @@
     <Compile Include="Forms\FrmLockerTrend.cs" />
     <Compile Include="Forms\FrmSystemLog.cs" />
     <Compile Include="Forms\FrmProcessManage.cs" />
+    <Compile Include="Forms\FrmProcessAudit.cs" />
     <Compile Include="Utils\SQLiteHelper.cs" />
     <Compile Include="Utils\PinYin.cs" />
     <Compile Include="Utils\ImportHelper.cs" />
