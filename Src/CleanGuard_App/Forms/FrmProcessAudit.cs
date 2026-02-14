@@ -11,10 +11,12 @@ namespace CleanGuard_App.Forms
     {
         private readonly NumericUpDown _numLimit = new NumericUpDown();
         private readonly ComboBox _cmbOpType = new ComboBox();
+        private readonly CheckBox _chkDateRange = new CheckBox();
         private readonly DateTimePicker _dtFrom = new DateTimePicker();
         private readonly DateTimePicker _dtTo = new DateTimePicker();
         private readonly TextBox _txtKeyword = new TextBox();
         private readonly Button _btnRefresh = new Button();
+        private readonly Button _btnClearFilters = new Button();
         private readonly Button _btnExport = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
@@ -28,6 +30,7 @@ namespace CleanGuard_App.Forms
             StartPosition = FormStartPosition.CenterParent;
 
             InitializeLayout();
+            ToggleDateRange();
             LoadLogs();
         }
 
@@ -49,36 +52,46 @@ namespace CleanGuard_App.Forms
             _cmbOpType.SelectedIndexChanged += (s, e) => ApplyFilter();
             Controls.Add(_cmbOpType);
 
-            Controls.Add(new Label { Text = "起始日期", Left = 390, Top = 24, Width = 60 });
-            _dtFrom.SetBounds(455, 20, 120, 28);
+            _chkDateRange.Text = "启用日期";
+            _chkDateRange.SetBounds(390, 22, 80, 24);
+            _chkDateRange.CheckedChanged += (s, e) => ToggleDateRange();
+            Controls.Add(_chkDateRange);
+
+            Controls.Add(new Label { Text = "起始日期", Left = 470, Top = 24, Width = 60 });
+            _dtFrom.SetBounds(535, 20, 110, 28);
             _dtFrom.Format = DateTimePickerFormat.Custom;
             _dtFrom.CustomFormat = "yyyy-MM-dd";
             _dtFrom.ValueChanged += (s, e) => ApplyFilter();
             Controls.Add(_dtFrom);
 
-            Controls.Add(new Label { Text = "结束日期", Left = 585, Top = 24, Width = 60 });
-            _dtTo.SetBounds(650, 20, 120, 28);
+            Controls.Add(new Label { Text = "结束日期", Left = 655, Top = 24, Width = 60 });
+            _dtTo.SetBounds(720, 20, 110, 28);
             _dtTo.Format = DateTimePickerFormat.Custom;
             _dtTo.CustomFormat = "yyyy-MM-dd";
             _dtTo.ValueChanged += (s, e) => ApplyFilter();
             Controls.Add(_dtTo);
 
-            Controls.Add(new Label { Text = "关键字", Left = 780, Top = 24, Width = 50 });
-            _txtKeyword.SetBounds(835, 20, 130, 28);
+            Controls.Add(new Label { Text = "关键字", Left = 840, Top = 24, Width = 50 });
+            _txtKeyword.SetBounds(895, 20, 120, 28);
             _txtKeyword.TextChanged += (s, e) => ApplyFilter();
             Controls.Add(_txtKeyword);
 
             _btnRefresh.Text = "刷新";
-            _btnRefresh.SetBounds(975, 20, 70, 28);
+            _btnRefresh.SetBounds(20, 530, 70, 28);
             _btnRefresh.Click += (s, e) => LoadLogs();
             Controls.Add(_btnRefresh);
 
+            _btnClearFilters.Text = "清除筛选";
+            _btnClearFilters.SetBounds(100, 530, 90, 28);
+            _btnClearFilters.Click += (s, e) => ResetFilters();
+            Controls.Add(_btnClearFilters);
+
             _btnExport.Text = "导出CSV";
-            _btnExport.SetBounds(1050, 20, 90, 28);
+            _btnExport.SetBounds(200, 530, 90, 28);
             _btnExport.Click += (s, e) => ExportCsv();
             Controls.Add(_btnExport);
 
-            _grid.SetBounds(20, 65, 1120, 500);
+            _grid.SetBounds(20, 65, 1120, 455);
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -108,12 +121,15 @@ namespace CleanGuard_App.Forms
                 conditions.Append(BuildOpTypeCondition(opType));
             }
 
-            DateTime fromDate = _dtFrom.Value.Date;
-            DateTime toDate = _dtTo.Value.Date.AddDays(1);
-            if (fromDate < toDate)
+            if (_chkDateRange.Checked)
             {
-                if (conditions.Length > 0) conditions.Append(" AND ");
-                conditions.AppendFormat("时间 >= '{0}' AND 时间 < '{1}'", fromDate.ToString("yyyy-MM-dd"), toDate.ToString("yyyy-MM-dd"));
+                DateTime fromDate = _dtFrom.Value.Date;
+                DateTime toDate = _dtTo.Value.Date.AddDays(1);
+                if (fromDate < toDate)
+                {
+                    if (conditions.Length > 0) conditions.Append(" AND ");
+                    conditions.AppendFormat("时间 >= '{0}' AND 时间 < '{1}'", fromDate.ToString("yyyy-MM-dd"), toDate.ToString("yyyy-MM-dd"));
+                }
             }
 
             string keyword = (_txtKeyword.Text ?? string.Empty).Trim();
@@ -126,6 +142,22 @@ namespace CleanGuard_App.Forms
 
             view.RowFilter = conditions.ToString();
             _grid.DataSource = view;
+        }
+
+
+        private void ToggleDateRange()
+        {
+            _dtFrom.Enabled = _chkDateRange.Checked;
+            _dtTo.Enabled = _chkDateRange.Checked;
+            ApplyFilter();
+        }
+
+        private void ResetFilters()
+        {
+            _cmbOpType.SelectedIndex = 0;
+            _chkDateRange.Checked = false;
+            _txtKeyword.Clear();
+            ApplyFilter();
         }
 
         private static string BuildOpTypeCondition(string opType)
