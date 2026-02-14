@@ -403,7 +403,13 @@ namespace CleanGuard_App.Forms
 
             try
             {
-                int added = AppendRowsFromText(grid, category, text);
+                var preview = BuildImportPreview(category, text, false);
+                if (!ShowImportPreviewDialog(preview, category))
+                {
+                    return;
+                }
+
+                int added = AppendValidRows(grid, category, preview);
                 MessageBox.Show(string.Format("已批量粘贴 {0} 行。", added), "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -635,64 +641,6 @@ namespace CleanGuard_App.Forms
                 }
 
                 AddItemRowWithLimit(grid, category, row.Size, row.ItemCode, row.ItemCondition, row.IssueDate);
-                added++;
-            }
-
-            return added;
-        }
-
-        private int AppendRowsFromText(DataGridView grid, string category, string text, bool skipHeader = false)
-        {
-            string[] lines = text.Replace("\r", string.Empty).Split('\n');
-            int start = 0;
-            if (skipHeader && lines.Length > 0)
-            {
-                start = 1;
-            }
-
-            int added = 0;
-            for (int i = start; i < lines.Length; i++)
-            {
-                string line = (lines[i] ?? string.Empty).Trim();
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    continue;
-                }
-
-                string[] cells = line.Split('\t');
-                if (cells.Length == 1 && line.Contains(","))
-                {
-                    cells = line.Split(',');
-                }
-
-                string size = GetCell(cells, 0);
-                string itemCode = string.Empty;
-                string itemCondition = string.Empty;
-                string issueDate;
-
-                if (NeedCodeColumn(category))
-                {
-                    itemCode = GetCell(cells, 1);
-                    issueDate = GetCell(cells, 2);
-                }
-                else
-                {
-                    itemCondition = GetCell(cells, 1);
-                    issueDate = GetCell(cells, 2);
-                }
-
-                if (!string.IsNullOrWhiteSpace(issueDate))
-                {
-                    DateTime date;
-                    if (!DateTime.TryParse(issueDate, out date))
-                    {
-                        throw new InvalidOperationException(string.Format("第 {0} 行领用日期格式错误，请使用 yyyy-MM-dd。", i + 1));
-                    }
-
-                    issueDate = date.ToString("yyyy-MM-dd");
-                }
-
-                AddItemRowWithLimit(grid, category, size, itemCode, itemCondition, issueDate);
                 added++;
             }
 
