@@ -14,6 +14,43 @@ namespace CleanGuard_App.Utils
 
         public static void ShowLabelPreview(string empNo, string name, string process, string locker2F)
         {
+            var printDoc = BuildPrintDocument(empNo, name, process, locker2F);
+            using (var preview = new PrintPreviewDialog())
+            {
+                preview.Document = printDoc;
+                preview.Width = 900;
+                preview.Height = 700;
+                preview.ShowDialog();
+            }
+
+            printDoc.Dispose();
+        }
+
+        public static bool PrintLabelDirect(IWin32Window owner, string empNo, string name, string process, string locker2F)
+        {
+            var printDoc = BuildPrintDocument(empNo, name, process, locker2F);
+            using (var dialog = new PrintDialog())
+            {
+                dialog.AllowSelection = false;
+                dialog.AllowSomePages = false;
+                dialog.UseEXDialog = true;
+                dialog.Document = printDoc;
+                if (dialog.ShowDialog(owner) != DialogResult.OK)
+                {
+                    printDoc.Dispose();
+                    return false;
+                }
+
+                printDoc.PrinterSettings = dialog.PrinterSettings;
+            }
+
+            printDoc.Print();
+            printDoc.Dispose();
+            return true;
+        }
+
+        private static PrintDocument BuildPrintDocument(string empNo, string name, string process, string locker2F)
+        {
             string payload = BuildQrPayload(empNo, name, locker2F);
             string title = string.Format("{0} ({1}) - {2}", name, empNo, process);
 
@@ -49,11 +86,7 @@ namespace CleanGuard_App.Utils
                 args.HasMorePages = false;
             };
 
-            var preview = new PrintPreviewDialog();
-            preview.Document = printDoc;
-            preview.Width = 900;
-            preview.Height = 700;
-            preview.ShowDialog();
+            return printDoc;
         }
 
         private static Bitmap TryGenerateQrBitmap(string payload)

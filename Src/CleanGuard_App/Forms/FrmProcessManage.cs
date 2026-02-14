@@ -15,6 +15,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnRefresh = new Button();
         private readonly Button _btnImport = new Button();
         private readonly Button _btnAudit = new Button();
+        private readonly Button _btnLocker = new Button();
 
         public FrmProcessManage()
         {
@@ -62,6 +63,11 @@ namespace CleanGuard_App.Forms
             _btnAudit.SetBounds(120, 460, 90, 28);
             _btnAudit.Click += (s, e) => OpenAudit();
             Controls.Add(_btnAudit);
+
+            _btnLocker.Text = "柜位异常";
+            _btnLocker.SetBounds(220, 460, 90, 28);
+            _btnLocker.Click += (s, e) => OpenLockerManage();
+            Controls.Add(_btnLocker);
 
             _grid.SetBounds(20, 65, 620, 385);
             _grid.ReadOnly = true;
@@ -112,6 +118,14 @@ namespace CleanGuard_App.Forms
             }
         }
 
+
+        private void OpenLockerManage()
+        {
+            using (var form = new FrmLockerManage())
+            {
+                form.ShowDialog(this);
+            }
+        }
 
         private void OpenAudit()
         {

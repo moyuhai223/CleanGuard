@@ -183,12 +183,31 @@ namespace CleanGuard_App.Forms
 
             try
             {
-                Printer.ShowLabelPreview(empNo, name, process, locker2F);
-                SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {empNo}-{name}, 二维码内容={Printer.BuildQrPayload(empNo, name, locker2F)}");
+                var mode = MessageBox.Show("选择打印方式：\n是 = 打印预览\n否 = 直接打印\n取消 = 取消", "打印方式", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (mode == DialogResult.Cancel)
+                {
+                    return;
+                }
+
+                bool printed = false;
+                if (mode == DialogResult.Yes)
+                {
+                    Printer.ShowLabelPreview(empNo, name, process, locker2F);
+                    printed = true;
+                }
+                else
+                {
+                    printed = Printer.PrintLabelDirect(this, empNo, name, process, locker2F);
+                }
+
+                if (printed)
+                {
+                    SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {empNo}-{name}, 二维码内容={Printer.BuildQrPayload(empNo, name, locker2F)}");
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("打印预览失败：" + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("打印失败：" + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

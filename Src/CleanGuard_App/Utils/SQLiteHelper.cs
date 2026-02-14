@@ -395,6 +395,56 @@ ORDER BY LockerID";
         }
 
 
+        public static DataTable QueryLockers(string location, string type, bool abnormalOnly)
+        {
+            var table = new DataTable();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            using (var adapter = new SQLiteDataAdapter(cmd))
+            {
+                conn.Open();
+                cmd.CommandText = @"SELECT LockerID AS 柜号, Location AS 楼层, Type AS 类型,
+       CASE IsOccupied WHEN 1 THEN '占用' ELSE '空闲' END AS 状态,
+       IFNULL(Remark, '') AS 异常备注
+FROM T_Lockers
+WHERE (@loc = '' OR Location = @loc)
+  AND (@type = '' OR Type = @type)
+  AND (@abnormal = 0 OR IFNULL(Remark, '') <> '')
+ORDER BY LockerID";
+                cmd.Parameters.AddWithValue("@loc", location ?? string.Empty);
+                cmd.Parameters.AddWithValue("@type", type ?? string.Empty);
+                cmd.Parameters.AddWithValue("@abnormal", abnormalOnly ? 1 : 0);
+                adapter.Fill(table);
+            }
+
+            return table;
+        }
+
+        public static void UpdateLockerRemark(string lockerId, string remark)
+        {
+            if (string.IsNullOrWhiteSpace(lockerId))
+            {
+                throw new ArgumentException("柜号不能为空。");
+            }
+
+            string normalized = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = "UPDATE T_Lockers SET Remark = @Remark WHERE LockerID = @LockerID";
+                cmd.Parameters.AddWithValue("@Remark", NormalizeNull(normalized));
+                cmd.Parameters.AddWithValue("@LockerID", lockerId.Trim());
+                int affected = cmd.ExecuteNonQuery();
+                if (affected <= 0)
+                {
+                    throw new InvalidOperationException("未找到该柜位，无法更新备注。");
+                }
+            }
+
+            WriteSystemLog("Employee", "维护柜位异常备注: " + lockerId + " => " + (normalized ?? "(空)"));
+        }
+
         public static LockerSummary GetLockerSummary()
         {
             var summary = new LockerSummary();
