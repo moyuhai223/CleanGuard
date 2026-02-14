@@ -28,6 +28,7 @@ namespace CleanGuard_App.Forms
 
             InitializeLayout();
             LoadImportLogs();
+            UpdateActionState();
         }
 
         private void InitializeLayout()
@@ -103,6 +104,7 @@ namespace CleanGuard_App.Forms
                 _lastResult = ImportHelper.ImportFromFile(dialog.FileName);
                 ShowImportResult(_lastResult);
                 LoadImportLogs();
+                UpdateActionState();
                 DialogResult = DialogResult.OK;
             }
         }
@@ -111,7 +113,7 @@ namespace CleanGuard_App.Forms
         {
             if (_lastResult == null || !_lastResult.Errors.Any())
             {
-                MessageBox.Show("当前没有可导出的失败明细。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("当前没有可导出的回填数据。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -140,6 +142,13 @@ namespace CleanGuard_App.Forms
             string text = string.Join(Environment.NewLine, _lastResult.Errors);
             Clipboard.SetText(text);
             MessageBox.Show("错误信息已复制到剪贴板。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void UpdateActionState()
+        {
+            bool hasErrors = _lastResult != null && _lastResult.Errors.Any();
+            _btnExportErrors.Enabled = hasErrors;
+            _btnCopyErrors.Enabled = hasErrors;
         }
 
         private void ShowImportResult(ImportResult result)
