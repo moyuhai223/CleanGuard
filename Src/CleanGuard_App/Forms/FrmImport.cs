@@ -32,7 +32,7 @@ namespace CleanGuard_App.Forms
 
             InitializeLayout();
             LoadImportLogs();
-            ApplyImportActionState();
+            UpdateActionState();
         }
 
         private void InitializeLayout()
@@ -57,7 +57,7 @@ namespace CleanGuard_App.Forms
 
             _btnCopyErrors.Text = "复制错误信息";
             _btnCopyErrors.SetBounds(490, 20, 130, 30);
-            _btnCopyErrors.Click += (s, e) => CopyErrorsToClipboard();
+            _btnCopyErrors.Click += (s, e) => CopyErrors();
             Controls.Add(_btnCopyErrors);
             UiTheme.StylePrimaryButton(_btnCopyErrors);
 
@@ -125,7 +125,7 @@ namespace CleanGuard_App.Forms
                 _lastResult = ImportHelper.ImportFromFile(dialog.FileName);
                 ShowImportResult(_lastResult);
                 LoadImportLogs();
-                ApplyImportActionState();
+                UpdateActionState();
                 DialogResult = DialogResult.OK;
             }
         }
@@ -149,46 +149,6 @@ namespace CleanGuard_App.Forms
 
                 _lastResult.ExportErrors(dialog.FileName);
                 MessageBox.Show("回填模板已导出，可修正后再次导入。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-
-            string text = string.Join(Environment.NewLine, _lastResult.Errors);
-            Clipboard.SetText(text);
-            MessageBox.Show("错误信息已复制到剪贴板。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void UpdateActionState()
-        {
-            bool hasErrors = _lastResult != null && _lastResult.Errors.Any();
-            _btnExportErrors.Enabled = hasErrors;
-            _btnCopyErrors.Enabled = hasErrors;
-        }
-
-        private void CopyErrors()
-        {
-            if (_lastResult == null || !_lastResult.Errors.Any())
-            {
-                MessageBox.Show("当前没有可复制的错误信息。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            string text = string.Join(Environment.NewLine, _lastResult.Errors);
-            Clipboard.SetText(text);
-            MessageBox.Show("错误信息已复制到剪贴板。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-
-        private void UpdateActionState()
-        {
-            bool hasErrors = _lastResult != null && _lastResult.Errors.Any();
-            _btnExportErrors.Enabled = hasErrors;
-            _btnCopyErrors.Enabled = hasErrors;
-        }
-
-        private void CopyErrors()
-        {
-            if (_lastResult == null || !_lastResult.Errors.Any())
-            {
-                MessageBox.Show("当前没有可复制的错误信息。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
             }
 
             string text = string.Join(Environment.NewLine, _lastResult.Errors);
@@ -237,6 +197,26 @@ namespace CleanGuard_App.Forms
         }
 
         private void ApplyImportActionState()
+        {
+            bool hasErrors = _lastResult != null && _lastResult.Errors.Any();
+            _btnExportErrors.Enabled = hasErrors;
+            _btnCopyErrors.Enabled = hasErrors;
+        }
+
+        private void CopyErrors()
+        {
+            if (_lastResult == null || !_lastResult.Errors.Any())
+            {
+                MessageBox.Show("当前没有可复制的错误信息。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string text = string.Join(Environment.NewLine, _lastResult.Errors);
+            Clipboard.SetText(text);
+            MessageBox.Show("错误信息已复制到剪贴板。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void UpdateActionState()
         {
             bool hasErrors = _lastResult != null && _lastResult.Errors.Any();
             _btnExportErrors.Enabled = hasErrors;
