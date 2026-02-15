@@ -223,6 +223,26 @@ namespace CleanGuard_App.Forms
             _btnCopyErrors.Enabled = hasErrors;
         }
 
+        private void CopyErrorsToClipboard()
+        {
+            if (_lastResult == null || !_lastResult.Errors.Any())
+            {
+                MessageBox.Show("当前没有可复制的错误信息。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string text = string.Join(Environment.NewLine, _lastResult.Errors);
+            Clipboard.SetText(text);
+            MessageBox.Show("错误信息已复制到剪贴板。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void ApplyImportActionState()
+        {
+            bool hasErrors = _lastResult != null && _lastResult.Errors.Any();
+            _btnExportErrors.Enabled = hasErrors;
+            _btnCopyErrors.Enabled = hasErrors;
+        }
+
         private void ShowImportResult(ImportResult result)
         {
             var lines = new[]
