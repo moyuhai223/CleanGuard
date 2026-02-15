@@ -24,6 +24,8 @@ namespace CleanGuard_App.Forms
             Height = 620;
             StartPosition = FormStartPosition.CenterParent;
 
+            UiTheme.ApplyFormStyle(this);
+
             InitializeLayout();
             LoadLockers();
         }
@@ -52,6 +54,7 @@ namespace CleanGuard_App.Forms
             _btnQuery.SetBounds(420, 20, 70, 28);
             _btnQuery.Click += (s, e) => LoadLockers();
             Controls.Add(_btnQuery);
+            UiTheme.StylePrimaryButton(_btnQuery);
 
             Controls.Add(new Label { Text = "异常备注", Left = 510, Top = 24, Width = 60 });
             _txtRemark.SetBounds(575, 20, 240, 28);
@@ -61,16 +64,19 @@ namespace CleanGuard_App.Forms
             _btnSaveRemark.SetBounds(825, 20, 90, 28);
             _btnSaveRemark.Click += (s, e) => SaveRemark();
             Controls.Add(_btnSaveRemark);
+            UiTheme.StylePrimaryButton(_btnSaveRemark);
 
             _btnDownloadTemplate.Text = "下载柜位模板";
             _btnDownloadTemplate.SetBounds(575, 560, 130, 30);
             _btnDownloadTemplate.Click += (s, e) => DownloadLockerTemplate();
             Controls.Add(_btnDownloadTemplate);
+            UiTheme.StylePrimaryButton(_btnDownloadTemplate);
 
             _btnImportLockers.Text = "导入柜位数据";
             _btnImportLockers.SetBounds(715, 560, 130, 30);
             _btnImportLockers.Click += (s, e) => ImportLockers();
             Controls.Add(_btnImportLockers);
+            UiTheme.StylePrimaryButton(_btnImportLockers);
 
             _grid.SetBounds(20, 65, 920, 485);
             _grid.ReadOnly = true;
@@ -80,6 +86,7 @@ namespace CleanGuard_App.Forms
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             _grid.SelectionChanged += (s, e) => FillRemarkFromSelection();
             Controls.Add(_grid);
+            UiTheme.StyleDataGrid(_grid);
         }
 
         private void LoadLockers()
@@ -137,8 +144,12 @@ namespace CleanGuard_App.Forms
                     return;
                 }
 
-                ImportHelper.ExportLockerTemplate(dialog.FileName);
-                MessageBox.Show("柜位模板下载成功。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                string warning;
+                string actualPath = ImportHelper.ExportLockerTemplateWithFallback(dialog.FileName, out warning);
+                string message = string.IsNullOrWhiteSpace(warning)
+                    ? "柜位模板下载成功。"
+                    : warning + "\n文件路径：" + actualPath;
+                MessageBox.Show(message, "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
