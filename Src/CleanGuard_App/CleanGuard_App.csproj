@@ -54,7 +54,7 @@
     <Reference Include="NPOI.OpenXmlFormats">
       <HintPath>..\..\packages\NPOI.2.5.6\lib\net45\NPOI.OpenXmlFormats.dll</HintPath>
     </Reference>
-    <Reference Include="ICSharpCode.SharpZipLib">
+    <Reference Include="ICSharpCode.SharpZipLib" Condition="Exists('..\..\packages\SharpZipLib.1.4.2\lib\net45\ICSharpCode.SharpZipLib.dll')">
       <HintPath>..\..\packages\SharpZipLib.1.4.2\lib\net45\ICSharpCode.SharpZipLib.dll</HintPath>
     </Reference>
     <Reference Include="System.Numerics" />
@@ -80,6 +80,7 @@
     <Compile Include="Utils\PinYin.cs" />
     <Compile Include="Utils\ImportHelper.cs" />
     <Compile Include="Utils\Printer.cs" />
+    <Compile Include="Utils\UiTheme.cs" />
   </ItemGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
