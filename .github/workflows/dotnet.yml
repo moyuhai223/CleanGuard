@@ -1,4 +1,4 @@
-name: Build and Package
+name: Build and Release CleanGuard (Framework-dependent)
 
 on:
   push:
@@ -6,21 +6,32 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  build-and-release:
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - rid: win32
-            platform_target: x86
-          - rid: win64
-            platform_target: x64
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: false
+
+      - name: Configure Git for UTF-8
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global i18n.commitencoding utf-8
+          git config --global i18n.logoutputencoding utf-8
+
+      - name: Enable UTF-8 code page
+        shell: pwsh
+        run: |
+          chcp 65001
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -28,100 +39,66 @@ jobs:
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Restore packages
+      - name: Restore dependencies
         run: nuget restore Src/CleanGuard_App/packages.config -PackagesDirectory packages -NonInteractive
 
-      - name: Build (${{ matrix.rid }})
+      - name: Build project
         shell: pwsh
         run: |
           msbuild Src/CleanGuard_App/CleanGuard_App.csproj `
             /t:Rebuild `
             /p:Configuration=Release `
-            /p:Platform="AnyCPU" `
-            /p:PlatformTarget=${{ matrix.platform_target }}
+            /p:Platform="AnyCPU"
 
-      - name: Generate version timestamp
-        id: version
+      - name: Prepare publish folder
         shell: pwsh
         run: |
-          $version = Get-Date -Format "yyyyMMddHHmmss"
-          "version=$version" >> $env:GITHUB_OUTPUT
-
-      - name: Package (${{ matrix.rid }})
-        id: package
-        shell: pwsh
-        run: |
-          $stage = "artifacts/stage-${{ matrix.rid }}"
-          New-Item -ItemType Directory -Path $stage -Force | Out-Null
-
-          $singleExe = "Output/CleanGuard_App.exe"
-          if (-not (Test-Path $singleExe)) {
-            throw "Single-file exe not found: $singleExe"
+          $publishDir = "publish"
+          if (Test-Path $publishDir) {
+            Remove-Item $publishDir -Recurse -Force
           }
+          New-Item -ItemType Directory -Path $publishDir | Out-Null
 
-          Copy-Item -Path $singleExe -Destination "$stage/CleanGuard.exe" -Force
+          Copy-Item -Path "Output/CleanGuard_App.exe" -Destination "$publishDir/CleanGuard.exe" -Force
 
-          $config = "Output/CleanGuard_App.exe.config"
-          if (Test-Path $config) {
-            Copy-Item -Path $config -Destination "$stage/CleanGuard.exe.config" -Force
+          if (Test-Path "Output/CleanGuard_App.exe.config") {
+            Copy-Item -Path "Output/CleanGuard_App.exe.config" -Destination "$publishDir/CleanGuard.exe.config" -Force
           }
 
           if (Test-Path "Output/x86/SQLite.Interop.dll") {
-            New-Item -ItemType Directory -Path "$stage/x86" -Force | Out-Null
-            Copy-Item -Path "Output/x86/SQLite.Interop.dll" -Destination "$stage/x86/SQLite.Interop.dll" -Force
+            New-Item -ItemType Directory -Path "$publishDir/x86" -Force | Out-Null
+            Copy-Item -Path "Output/x86/SQLite.Interop.dll" -Destination "$publishDir/x86/SQLite.Interop.dll" -Force
           }
 
           if (Test-Path "Output/x64/SQLite.Interop.dll") {
-            New-Item -ItemType Directory -Path "$stage/x64" -Force | Out-Null
-            Copy-Item -Path "Output/x64/SQLite.Interop.dll" -Destination "$stage/x64/SQLite.Interop.dll" -Force
+            New-Item -ItemType Directory -Path "$publishDir/x64" -Force | Out-Null
+            Copy-Item -Path "Output/x64/SQLite.Interop.dll" -Destination "$publishDir/x64/SQLite.Interop.dll" -Force
           }
 
-          $sharpZipLib = "Output/ICSharpCode.SharpZipLib.dll"
-          if (Test-Path $sharpZipLib) {
-            Copy-Item -Path $sharpZipLib -Destination "$stage/ICSharpCode.SharpZipLib.dll" -Force
+          if (Test-Path "Output/ICSharpCode.SharpZipLib.dll") {
+            Copy-Item -Path "Output/ICSharpCode.SharpZipLib.dll" -Destination "$publishDir/ICSharpCode.SharpZipLib.dll" -Force
           }
 
-          $zipName = "CleanGuard-${{ matrix.rid }}-${{ steps.version.outputs.version }}.zip"
-          $zipPath = "artifacts/$zipName"
-          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-          Compress-Archive -Path "$stage/*" -DestinationPath $zipPath
-
-          "zip_name=$zipName" >> $env:GITHUB_OUTPUT
-          "zip_path=$zipPath" >> $env:GITHUB_OUTPUT
-
-      - name: Upload artifact (${{ matrix.rid }})
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-${{ matrix.rid }}-${{ steps.version.outputs.version }}
-          path: ${{ steps.package.outputs.zip_path }}
-          if-no-files-found: error
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download packaged artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release-assets
-
-      - name: Update latest tag
+      - name: Create ZIP package
+        shell: pwsh
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f latest
-          git push origin latest --force
+          Compress-Archive -Path ./publish/* -DestinationPath ./CleanGuard.zip -Force
 
-      - name: Publish Release to latest tag
+      - name: Get current date
+        id: date
+        shell: pwsh
+        run: |
+          $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+          "date=$timestamp" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: "Latest Build"
-          files: release-assets/**/*.zip
-          generate_release_notes: true
+          tag_name: release-${{ steps.date.outputs.date }}
+          name: Release-${{ steps.date.outputs.date }}
+          body: "Automated release with build artifacts"
+          draft: false
           prerelease: false
+          files: ./CleanGuard.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
