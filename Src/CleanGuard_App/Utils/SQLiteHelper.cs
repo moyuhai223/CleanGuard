@@ -488,6 +488,50 @@ GROUP BY Location, Type;";
             return summary;
         }
 
+
+        public static string GetSystemConfigValue(string configKey)
+        {
+            if (string.IsNullOrWhiteSpace(configKey))
+            {
+                return null;
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = "SELECT ConfigValue FROM T_SystemConfig WHERE ConfigKey = @Key";
+                cmd.Parameters.AddWithValue("@Key", configKey.Trim());
+                object value = cmd.ExecuteScalar();
+                if (value == null || value == DBNull.Value)
+                {
+                    return null;
+                }
+
+                return Convert.ToString(value);
+            }
+        }
+
+        public static void SaveSystemConfigValue(string configKey, string configValue)
+        {
+            if (string.IsNullOrWhiteSpace(configKey))
+            {
+                throw new ArgumentException("配置键不能为空。", "configKey");
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = @"INSERT INTO T_SystemConfig(ConfigKey, ConfigValue, UpdatedTime)
+VALUES(@Key, @Value, CURRENT_TIMESTAMP)
+ON CONFLICT(ConfigKey) DO UPDATE SET ConfigValue = excluded.ConfigValue, UpdatedTime = CURRENT_TIMESTAMP;";
+                cmd.Parameters.AddWithValue("@Key", configKey.Trim());
+                cmd.Parameters.AddWithValue("@Value", NormalizeNull(configValue));
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         public static Dictionary<string, int> GetItemCategoryLimits()
         {
             var limits = new Dictionary<string, int>(StringComparer.Ordinal)

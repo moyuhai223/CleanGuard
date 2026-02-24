@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Drawing;
 using System.Windows.Forms;
@@ -21,6 +22,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnLogs = new Button();
         private readonly Button _btnProcessDict = new Button();
         private readonly Button _btnLockerManage = new Button();
+        private readonly Button _btnPrintSetup = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
         public FrmMain()
@@ -70,7 +72,12 @@ namespace CleanGuard_App.Forms
             grpDailyOps.Controls.Add(_btnPrintLabel);
             UiTheme.StylePrimaryButton(_btnPrintLabel);
 
-            LayoutActionButtons(grpDailyOps, 24, 108, 32);
+            _btnPrintSetup.Text = "打印设置";
+            _btnPrintSetup.Click += (s, e) => OpenPrintSetup();
+            grpDailyOps.Controls.Add(_btnPrintSetup);
+            UiTheme.StylePrimaryButton(_btnPrintSetup);
+
+            LayoutActionButtons(grpDailyOps, 24, 100, 32);
 
             var grpDangerOps = CreateActionGroup("步骤2：高风险操作（请谨慎）", 610, 65, 290, 70, Color.FromArgb(200, 80, 80));
             Controls.Add(grpDangerOps);
@@ -121,7 +128,7 @@ namespace CleanGuard_App.Forms
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            _grid.MultiSelect = false;
+            _grid.MultiSelect = true;
             _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             _grid.CellDoubleClick += (s, e) => OpenEditorForSelected();
             Controls.Add(_grid);
@@ -221,50 +228,179 @@ namespace CleanGuard_App.Forms
         {
             if (_grid.SelectedRows.Count == 0)
             {
-                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("请先选择至少一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            var row = _grid.SelectedRows[0];
-            string empNo = Convert.ToString(row.Cells["工号"].Value);
-            string name = Convert.ToString(row.Cells["姓名"].Value);
-            string process = Convert.ToString(row.Cells["工序"].Value);
-            string locker2F = Convert.ToString(row.Cells["2F衣柜"].Value);
-
-            if (string.IsNullOrWhiteSpace(empNo) || string.IsNullOrWhiteSpace(name))
+            var targets = CollectPrintTargets();
+            if (targets.Count == 0)
             {
-                MessageBox.Show("当前选中数据不完整，无法打印。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("选中行数据不完整，无法打印。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            try
+            if (!ConfirmPrintWarnings(targets))
             {
-                var mode = MessageBox.Show("选择打印方式：\n是 = 打印预览\n否 = 直接打印\n取消 = 取消", "打印方式", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-                if (mode == DialogResult.Cancel)
+                return;
+            }
+
+            var mode = MessageBox.Show("选择打印方式：\n是 = 打印预览\n否 = 直接打印\n取消 = 取消", "打印方式", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (mode == DialogResult.Cancel)
+            {
+                return;
+            }
+
+            int printedCount = 0;
+            foreach (var target in targets)
+            {
+                bool printed;
+                bool continuePrinting = TryPrintOneTarget(target, mode, out printed);
+                if (!continuePrinting)
                 {
-                    return;
+                    break;
                 }
 
-                bool printed = false;
-                if (mode == DialogResult.Yes)
+                if (!printed)
                 {
-                    Printer.ShowLabelPreview(empNo, name, process, locker2F);
-                    printed = true;
-                }
-                else
-                {
-                    printed = Printer.PrintLabelDirect(this, empNo, name, process, locker2F);
+                    continue;
                 }
 
-                if (printed)
+                printedCount++;
+                SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {target.EmpNo}-{target.Name}, 二维码内容={Printer.BuildQrPayload(target.EmpNo, target.Name, target.Locker2F)}");
+            }
+
+            if (printedCount > 0)
+            {
+                MessageBox.Show($"已完成打印 {printedCount} 张标签。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private bool TryPrintOneTarget(PrintTarget target, DialogResult mode, out bool printed)
+        {
+            printed = false;
+
+            while (true)
+            {
+                try
                 {
-                    SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {empNo}-{name}, 二维码内容={Printer.BuildQrPayload(empNo, name, locker2F)}");
+                    if (mode == DialogResult.Yes)
+                    {
+                        Printer.ShowLabelPreview(target.EmpNo, target.Name, target.Process, target.Locker2F);
+                        printed = true;
+                    }
+                    else
+                    {
+                        printed = Printer.PrintLabelDirect(this, target.EmpNo, target.Name, target.Process, target.Locker2F);
+                    }
+
+                    if (!printed)
+                    {
+                        var result = MessageBox.Show("已取消当前员工打印。\n是：继续后续员工\n否：终止本次批量打印", "打印取消", MessageBoxButtons.YesNo, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1);
+                        return result == DialogResult.Yes;
+                    }
+
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    string errorMessage = BuildFriendlyPrintError(ex);
+                    var result = MessageBox.Show(
+                        $"员工 {target.EmpNo}-{target.Name} 打印失败：\n{errorMessage}\n\n是：重试当前员工\n否：跳过当前员工\n取消：终止批量打印",
+                        "打印失败",
+                        MessageBoxButtons.YesNoCancel,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button1);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        continue;
+                    }
+
+                    if (result == DialogResult.No)
+                    {
+                        return true;
+                    }
+
+                    return false;
                 }
             }
-            catch (Exception ex)
+        }
+
+        private static string BuildFriendlyPrintError(Exception ex)
+        {
+            string message = ex == null ? string.Empty : (ex.Message ?? string.Empty);
+            string lower = message.ToLowerInvariant();
+
+            if (lower.Contains("printer") || lower.Contains("print") || message.Contains("打印机"))
             {
-                MessageBox.Show("打印失败：" + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return "打印机不可用或连接异常，请检查打印机在线状态、驱动与默认设备后重试。";
             }
+
+            if (lower.Contains("access") || lower.Contains("denied") || message.Contains("拒绝访问"))
+            {
+                return "打印权限不足，请使用有权限账户或联系管理员。";
+            }
+
+            if (lower.Contains("paper") || message.Contains("纸") || message.Contains("卡纸"))
+            {
+                return "打印机纸张状态异常，请检查纸盒、纸型设置或是否卡纸。";
+            }
+
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return "未知打印异常，请重试并检查打印机状态。";
+            }
+
+            return message;
+        }
+
+        private List<PrintTarget> CollectPrintTargets()
+        {
+            var list = new List<PrintTarget>();
+            foreach (DataGridViewRow row in _grid.SelectedRows)
+            {
+                string empNo = Convert.ToString(row.Cells["工号"].Value);
+                string name = Convert.ToString(row.Cells["姓名"].Value);
+                if (string.IsNullOrWhiteSpace(empNo) || string.IsNullOrWhiteSpace(name))
+                {
+                    continue;
+                }
+
+                list.Add(new PrintTarget
+                {
+                    EmpNo = empNo,
+                    Name = name,
+                    Process = Convert.ToString(row.Cells["工序"].Value),
+                    Locker2F = Convert.ToString(row.Cells["2F衣柜"].Value)
+                });
+            }
+
+            return list;
+        }
+
+        private bool ConfirmPrintWarnings(List<PrintTarget> targets)
+        {
+            var warnings = new List<string>();
+            foreach (var target in targets)
+            {
+                if (string.IsNullOrWhiteSpace(target.Process))
+                {
+                    warnings.Add($"{target.EmpNo}-{target.Name} 未填写工序");
+                }
+
+                if (string.IsNullOrWhiteSpace(target.Locker2F))
+                {
+                    warnings.Add($"{target.EmpNo}-{target.Name} 未填写2F衣柜");
+                }
+            }
+
+            if (warnings.Count == 0)
+            {
+                return true;
+            }
+
+            string message = "检测到以下打印提醒：\n- " + string.Join("\n- ", warnings.ToArray()) + "\n\n是否继续打印？";
+            return MessageBox.Show(message, "打印提醒", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
         }
 
         private void RestoreSelectedEmployee()
@@ -421,6 +557,22 @@ namespace CleanGuard_App.Forms
             LoadEmployeeData(_txtSearch.Text.Trim());
         }
 
+
+        private void OpenPrintSetup()
+        {
+            try
+            {
+                bool saved = Printer.ConfigurePrintPreset(this);
+                if (saved)
+                {
+                    MessageBox.Show("打印预设已保存。\n" + Printer.GetPrintPresetSummary(), "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("保存打印预设失败：" + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
         private void OpenLockerManage()
         {
             using (var form = new FrmLockerManage())
@@ -429,6 +581,14 @@ namespace CleanGuard_App.Forms
             }
 
             LoadEmployeeData(_txtSearch.Text.Trim());
+        }
+
+        private class PrintTarget
+        {
+            public string EmpNo { get; set; }
+            public string Name { get; set; }
+            public string Process { get; set; }
+            public string Locker2F { get; set; }
         }
     }
 }
