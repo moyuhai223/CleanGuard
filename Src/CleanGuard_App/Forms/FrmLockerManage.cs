@@ -137,7 +137,7 @@ namespace CleanGuard_App.Forms
         {
             using (var dialog = new SaveFileDialog())
             {
-                dialog.Filter = "Excel 文件|*.xlsx|CSV 文件|*.csv";
+                dialog.Filter = "Excel 文件|*.xlsx";
                 dialog.FileName = "CleanGuard_柜位导入模板.xlsx";
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
@@ -155,7 +155,7 @@ namespace CleanGuard_App.Forms
 
         private void ImportLockers()
         {
-            var tip = "导入将按文件重建柜位列表，并忽略‘原始编码’字段（若存在）。是否继续？";
+            var tip = "导入将按文件重建柜位列表。模板要求首行为：1F衣柜、1F鞋柜、2F衣柜、2F鞋柜。是否继续？";
             if (MessageBox.Show(tip, "确认导入", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
             {
                 return;
@@ -163,7 +163,7 @@ namespace CleanGuard_App.Forms
 
             using (var dialog = new OpenFileDialog())
             {
-                dialog.Filter = "Excel 文件|*.xlsx|CSV 文件|*.csv";
+                dialog.Filter = "Excel 文件|*.xlsx";
                 if (dialog.ShowDialog(this) != DialogResult.OK)
                 {
                     return;

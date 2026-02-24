@@ -20,6 +20,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnImport = new Button();
         private readonly Button _btnLogs = new Button();
         private readonly Button _btnProcessDict = new Button();
+        private readonly Button _btnLockerManage = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
         public FrmMain()
@@ -109,7 +110,12 @@ namespace CleanGuard_App.Forms
             grpModuleNav.Controls.Add(_btnProcessDict);
             UiTheme.StylePrimaryButton(_btnProcessDict);
 
-            LayoutActionButtons(grpModuleNav, 24, 82, 32);
+            _btnLockerManage.Text = "柜位维护";
+            _btnLockerManage.Click += (s, e) => OpenLockerManage();
+            grpModuleNav.Controls.Add(_btnLockerManage);
+            UiTheme.StylePrimaryButton(_btnLockerManage);
+
+            LayoutActionButtons(grpModuleNav, 24, 62, 32);
 
             _grid.SetBounds(20, 145, 1260, 515);
             _grid.ReadOnly = true;
@@ -408,6 +414,16 @@ namespace CleanGuard_App.Forms
         private void OpenProcessDict()
         {
             using (var form = new FrmProcessManage())
+            {
+                form.ShowDialog(this);
+            }
+
+            LoadEmployeeData(_txtSearch.Text.Trim());
+        }
+
+        private void OpenLockerManage()
+        {
+            using (var form = new FrmLockerManage())
             {
                 form.ShowDialog(this);
             }
