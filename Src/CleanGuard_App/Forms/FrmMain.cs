@@ -20,6 +20,7 @@ namespace CleanGuard_App.Forms
         private readonly Button _btnImport = new Button();
         private readonly Button _btnLogs = new Button();
         private readonly Button _btnProcessDict = new Button();
+        private readonly Button _btnLockerManage = new Button();
         private readonly DataGridView _grid = new DataGridView();
 
         public FrmMain()
@@ -37,76 +38,86 @@ namespace CleanGuard_App.Forms
 
         private void InitializeLayout()
         {
-            _txtSearch.SetBounds(20, 20, 200, 30);
+            _txtSearch.SetBounds(20, 20, 280, 32);
             Controls.Add(_txtSearch);
 
             _btnSearch.Text = "搜索";
-            _btnSearch.SetBounds(230, 20, 70, 30);
+            _btnSearch.SetBounds(310, 20, 90, 32);
             _btnSearch.Click += (s, e) => LoadEmployeeData(_txtSearch.Text.Trim());
             Controls.Add(_btnSearch);
             UiTheme.StylePrimaryButton(_btnSearch);
 
+            var grpDailyOps = CreateActionGroup("步骤1：日常员工操作", 20, 65, 580, 70, Color.FromArgb(69, 126, 245));
+            Controls.Add(grpDailyOps);
+
             _btnAdd.Text = "新增员工";
-            _btnAdd.SetBounds(310, 20, 90, 30);
             _btnAdd.Click += (s, e) => OpenEditor();
-            Controls.Add(_btnAdd);
+            grpDailyOps.Controls.Add(_btnAdd);
             UiTheme.StylePrimaryButton(_btnAdd);
 
             _btnEdit.Text = "编辑员工";
-            _btnEdit.SetBounds(410, 20, 90, 30);
             _btnEdit.Click += (s, e) => OpenEditorForSelected();
-            Controls.Add(_btnEdit);
+            grpDailyOps.Controls.Add(_btnEdit);
             UiTheme.StylePrimaryButton(_btnEdit);
 
-            _btnResign.Text = "办理离职";
-            _btnResign.SetBounds(510, 20, 90, 30);
-            _btnResign.Click += (s, e) => ResignSelectedEmployee();
-            Controls.Add(_btnResign);
-            UiTheme.StyleWarningButton(_btnResign);
-
             _btnRestore.Text = "办理复职";
-            _btnRestore.SetBounds(610, 20, 90, 30);
             _btnRestore.Click += (s, e) => RestoreSelectedEmployee();
-            Controls.Add(_btnRestore);
+            grpDailyOps.Controls.Add(_btnRestore);
             UiTheme.StylePrimaryButton(_btnRestore);
 
-            _btnDelete.Text = "删除员工";
-            _btnDelete.SetBounds(710, 20, 90, 30);
-            _btnDelete.Click += (s, e) => DeleteSelectedEmployee();
-            Controls.Add(_btnDelete);
-            UiTheme.StyleWarningButton(_btnDelete);
-
             _btnPrintLabel.Text = "打印标签";
-            _btnPrintLabel.SetBounds(810, 20, 90, 30);
             _btnPrintLabel.Click += (s, e) => PrintSelectedEmployeeLabel();
-            Controls.Add(_btnPrintLabel);
+            grpDailyOps.Controls.Add(_btnPrintLabel);
             UiTheme.StylePrimaryButton(_btnPrintLabel);
 
+            LayoutActionButtons(grpDailyOps, 24, 108, 32);
+
+            var grpDangerOps = CreateActionGroup("步骤2：高风险操作（请谨慎）", 610, 65, 290, 70, Color.FromArgb(200, 80, 80));
+            Controls.Add(grpDangerOps);
+
+            _btnResign.Text = "办理离职";
+            _btnResign.Click += (s, e) => ResignSelectedEmployee();
+            grpDangerOps.Controls.Add(_btnResign);
+            UiTheme.StyleWarningButton(_btnResign);
+
+            _btnDelete.Text = "删除员工";
+            _btnDelete.Click += (s, e) => DeleteSelectedEmployee();
+            grpDangerOps.Controls.Add(_btnDelete);
+            UiTheme.StyleWarningButton(_btnDelete);
+
+            LayoutActionButtons(grpDangerOps, 24, 122, 32);
+
+            var grpModuleNav = CreateActionGroup("步骤3：进入业务模块", 910, 65, 370, 70, Color.FromArgb(69, 126, 245));
+            Controls.Add(grpModuleNav);
+
             _btnImport.Text = "数据导入";
-            _btnImport.SetBounds(910, 20, 90, 30);
             _btnImport.Click += (s, e) => OpenImportForm();
-            Controls.Add(_btnImport);
+            grpModuleNav.Controls.Add(_btnImport);
             UiTheme.StylePrimaryButton(_btnImport);
 
             _btnLockerMap.Text = "柜位分布图";
-            _btnLockerMap.SetBounds(1010, 20, 110, 30);
             _btnLockerMap.Click += (s, e) => OpenLockerChart();
-            Controls.Add(_btnLockerMap);
+            grpModuleNav.Controls.Add(_btnLockerMap);
             UiTheme.StylePrimaryButton(_btnLockerMap);
 
             _btnLogs.Text = "系统日志";
-            _btnLogs.SetBounds(1130, 20, 70, 30);
             _btnLogs.Click += (s, e) => OpenSystemLogs();
-            Controls.Add(_btnLogs);
+            grpModuleNav.Controls.Add(_btnLogs);
             UiTheme.StylePrimaryButton(_btnLogs);
 
             _btnProcessDict.Text = "工序字典";
-            _btnProcessDict.SetBounds(1210, 20, 70, 30);
             _btnProcessDict.Click += (s, e) => OpenProcessDict();
-            Controls.Add(_btnProcessDict);
+            grpModuleNav.Controls.Add(_btnProcessDict);
             UiTheme.StylePrimaryButton(_btnProcessDict);
 
-            _grid.SetBounds(20, 70, 1260, 590);
+            _btnLockerManage.Text = "柜位维护";
+            _btnLockerManage.Click += (s, e) => OpenLockerManage();
+            grpModuleNav.Controls.Add(_btnLockerManage);
+            UiTheme.StylePrimaryButton(_btnLockerManage);
+
+            LayoutActionButtons(grpModuleNav, 24, 62, 32);
+
+            _grid.SetBounds(20, 145, 1260, 515);
             _grid.ReadOnly = true;
             _grid.AllowUserToAddRows = false;
             _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -115,6 +126,37 @@ namespace CleanGuard_App.Forms
             _grid.CellDoubleClick += (s, e) => OpenEditorForSelected();
             Controls.Add(_grid);
             UiTheme.StyleDataGrid(_grid);
+        }
+
+        private static GroupBox CreateActionGroup(string title, int left, int top, int width, int height, Color titleColor)
+        {
+            var group = new GroupBox
+            {
+                Text = title,
+                Left = left,
+                Top = top,
+                Width = width,
+                Height = height,
+                ForeColor = titleColor
+            };
+
+            return group;
+        }
+
+        private static void LayoutActionButtons(GroupBox group, int top, int width, int height)
+        {
+            int left = 12;
+            foreach (Control control in group.Controls)
+            {
+                var button = control as Button;
+                if (button == null)
+                {
+                    continue;
+                }
+
+                button.SetBounds(left, top, width, height);
+                left += width + 10;
+            }
         }
 
         private void LoadEmployeeData(string keyword = "")
@@ -289,7 +331,7 @@ namespace CleanGuard_App.Forms
                 $"2F衣柜: {DisplayLocker(info.Locker2FClothes)}\n" +
                 $"2F鞋柜: {DisplayLocker(info.Locker2FShoe)}";
 
-            var result = MessageBox.Show(message, "删除确认", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            var result = MessageBox.Show("【高风险操作】\n" + message + "\n\n请再次确认：此操作会永久删除员工数据。", "删除确认", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
             if (result != DialogResult.Yes)
             {
                 return;
@@ -330,7 +372,7 @@ namespace CleanGuard_App.Forms
                 $"2F衣柜: {DisplayLocker(info.Locker2FClothes)}\n" +
                 $"2F鞋柜: {DisplayLocker(info.Locker2FShoe)}";
 
-            var result = MessageBox.Show(message, "离职确认", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            var result = MessageBox.Show("【高风险操作】\n" + message + "\n\n请确认是否继续办理离职。", "离职确认", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
             if (result != DialogResult.Yes)
             {
                 return;
@@ -372,6 +414,16 @@ namespace CleanGuard_App.Forms
         private void OpenProcessDict()
         {
             using (var form = new FrmProcessManage())
+            {
+                form.ShowDialog(this);
+            }
+
+            LoadEmployeeData(_txtSearch.Text.Trim());
+        }
+
+        private void OpenLockerManage()
+        {
+            using (var form = new FrmLockerManage())
             {
                 form.ShowDialog(this);
             }
