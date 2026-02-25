@@ -395,6 +395,30 @@ namespace CleanGuard_App.Forms
                 {
                     warnings.Add($"{target.EmpNo}-{target.Name} 未填写1F衣柜");
                 }
+                catch (Exception ex)
+                {
+                    string errorMessage = BuildFriendlyPrintError(ex);
+                    var result = MessageBox.Show(
+                        $"员工 {target.EmpNo}-{target.Name} 打印失败：\n{errorMessage}\n\n是：重试当前员工\n否：跳过当前员工\n取消：终止批量打印",
+                        "打印失败",
+                        MessageBoxButtons.YesNoCancel,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button1);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        continue;
+                    }
+
+                    if (result == DialogResult.No)
+                    {
+                        return true;
+                    }
+
+                    return false;
+                }
+            }
+        }
 
                 if (string.IsNullOrWhiteSpace(target.Locker1FShoe))
                 {
@@ -410,6 +434,14 @@ namespace CleanGuard_App.Forms
                 {
                     warnings.Add($"{target.EmpNo}-{target.Name} 未填写2F鞋柜");
                 }
+
+                list.Add(new PrintTarget
+                {
+                    EmpNo = empNo,
+                    Name = name,
+                    Process = Convert.ToString(row.Cells["工序"].Value),
+                    Locker2F = Convert.ToString(row.Cells["2F衣柜"].Value)
+                });
             }
 
             if (warnings.Count == 0)
