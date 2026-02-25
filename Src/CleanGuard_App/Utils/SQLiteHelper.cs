@@ -693,15 +693,20 @@ ORDER BY Location, Type, LockerID";
 
             try
             {
+                string normalizedLocker1FClothes = NormalizeLockerId(locker1FClothes);
+                string normalizedLocker1FShoe = NormalizeLockerId(locker1FShoe);
+                string normalizedLocker2FClothes = NormalizeLockerId(locker2FClothes);
+                string normalizedLocker2FShoe = NormalizeLockerId(locker2FShoe);
+
                 using (var conn = new SQLiteConnection(ConnectionString))
                 {
                     conn.Open();
                     using (var tx = conn.BeginTransaction())
                     {
-                        EnsureLockerValid(conn, tx, locker1FClothes, "1F", "衣柜", "1F衣柜");
-                        EnsureLockerValid(conn, tx, locker1FShoe, "1F", "鞋柜", "1F鞋柜");
-                        EnsureLockerValid(conn, tx, locker2FClothes, "2F", "衣柜", "2F衣柜");
-                        EnsureLockerValid(conn, tx, locker2FShoe, "2F", "鞋柜", "2F鞋柜");
+                        EnsureLockerValid(conn, tx, normalizedLocker1FClothes, "1F", "衣柜", "1F衣柜");
+                        EnsureLockerValid(conn, tx, normalizedLocker1FShoe, "1F", "鞋柜", "1F鞋柜");
+                        EnsureLockerValid(conn, tx, normalizedLocker2FClothes, "2F", "衣柜", "2F衣柜");
+                        EnsureLockerValid(conn, tx, normalizedLocker2FShoe, "2F", "鞋柜", "2F鞋柜");
 
                         using (var insertCmd = conn.CreateCommand())
                         {
@@ -713,17 +718,17 @@ VALUES (@EmpNo, @Name, @Pinyin, @Process, @L1C, @L1S, @L2C, @L2S, 1);";
                             insertCmd.Parameters.AddWithValue("@Name", name.Trim());
                             insertCmd.Parameters.AddWithValue("@Pinyin", PinYin.GetFirstLetter(name));
                             insertCmd.Parameters.AddWithValue("@Process", NormalizeNull(process));
-                            insertCmd.Parameters.AddWithValue("@L1C", NormalizeNull(locker1FClothes));
-                            insertCmd.Parameters.AddWithValue("@L1S", NormalizeNull(locker1FShoe));
-                            insertCmd.Parameters.AddWithValue("@L2C", NormalizeNull(locker2FClothes));
-                            insertCmd.Parameters.AddWithValue("@L2S", NormalizeNull(locker2FShoe));
+                            insertCmd.Parameters.AddWithValue("@L1C", NormalizeNull(normalizedLocker1FClothes));
+                            insertCmd.Parameters.AddWithValue("@L1S", NormalizeNull(normalizedLocker1FShoe));
+                            insertCmd.Parameters.AddWithValue("@L2C", NormalizeNull(normalizedLocker2FClothes));
+                            insertCmd.Parameters.AddWithValue("@L2S", NormalizeNull(normalizedLocker2FShoe));
                             insertCmd.ExecuteNonQuery();
                         }
 
-                        MarkLockerOccupied(conn, tx, locker1FClothes, 1);
-                        MarkLockerOccupied(conn, tx, locker1FShoe, 1);
-                        MarkLockerOccupied(conn, tx, locker2FClothes, 1);
-                        MarkLockerOccupied(conn, tx, locker2FShoe, 1);
+                        MarkLockerOccupied(conn, tx, normalizedLocker1FClothes, 1);
+                        MarkLockerOccupied(conn, tx, normalizedLocker1FShoe, 1);
+                        MarkLockerOccupied(conn, tx, normalizedLocker2FClothes, 1);
+                        MarkLockerOccupied(conn, tx, normalizedLocker2FShoe, 1);
 
                         tx.Commit();
                     }
@@ -791,6 +796,11 @@ FROM T_Employee WHERE EmpNo = @EmpNo";
 
             using (var conn = new SQLiteConnection(ConnectionString))
             {
+                string normalizedLocker1FClothes = NormalizeLockerId(locker1FClothes);
+                string normalizedLocker1FShoe = NormalizeLockerId(locker1FShoe);
+                string normalizedLocker2FClothes = NormalizeLockerId(locker2FClothes);
+                string normalizedLocker2FShoe = NormalizeLockerId(locker2FShoe);
+
                 conn.Open();
                 using (var tx = conn.BeginTransaction())
                 {
@@ -799,10 +809,10 @@ FROM T_Employee WHERE EmpNo = @EmpNo";
                     MarkLockerOccupied(conn, tx, oldData.Locker2FClothes, 0);
                     MarkLockerOccupied(conn, tx, oldData.Locker2FShoe, 0);
 
-                    EnsureLockerValid(conn, tx, locker1FClothes, "1F", "衣柜", "1F衣柜");
-                    EnsureLockerValid(conn, tx, locker1FShoe, "1F", "鞋柜", "1F鞋柜");
-                    EnsureLockerValid(conn, tx, locker2FClothes, "2F", "衣柜", "2F衣柜");
-                    EnsureLockerValid(conn, tx, locker2FShoe, "2F", "鞋柜", "2F鞋柜");
+                    EnsureLockerValid(conn, tx, normalizedLocker1FClothes, "1F", "衣柜", "1F衣柜");
+                    EnsureLockerValid(conn, tx, normalizedLocker1FShoe, "1F", "鞋柜", "1F鞋柜");
+                    EnsureLockerValid(conn, tx, normalizedLocker2FClothes, "2F", "衣柜", "2F衣柜");
+                    EnsureLockerValid(conn, tx, normalizedLocker2FShoe, "2F", "鞋柜", "2F鞋柜");
 
                     using (var cmd = conn.CreateCommand())
                     {
@@ -820,17 +830,17 @@ WHERE EmpNo = @EmpNo";
                         cmd.Parameters.AddWithValue("@Name", name.Trim());
                         cmd.Parameters.AddWithValue("@Pinyin", PinYin.GetFirstLetter(name));
                         cmd.Parameters.AddWithValue("@Process", NormalizeNull(process));
-                        cmd.Parameters.AddWithValue("@L1C", NormalizeNull(locker1FClothes));
-                        cmd.Parameters.AddWithValue("@L1S", NormalizeNull(locker1FShoe));
-                        cmd.Parameters.AddWithValue("@L2C", NormalizeNull(locker2FClothes));
-                        cmd.Parameters.AddWithValue("@L2S", NormalizeNull(locker2FShoe));
+                        cmd.Parameters.AddWithValue("@L1C", NormalizeNull(normalizedLocker1FClothes));
+                        cmd.Parameters.AddWithValue("@L1S", NormalizeNull(normalizedLocker1FShoe));
+                        cmd.Parameters.AddWithValue("@L2C", NormalizeNull(normalizedLocker2FClothes));
+                        cmd.Parameters.AddWithValue("@L2S", NormalizeNull(normalizedLocker2FShoe));
                         cmd.ExecuteNonQuery();
                     }
 
-                    MarkLockerOccupied(conn, tx, locker1FClothes, 1);
-                    MarkLockerOccupied(conn, tx, locker1FShoe, 1);
-                    MarkLockerOccupied(conn, tx, locker2FClothes, 1);
-                    MarkLockerOccupied(conn, tx, locker2FShoe, 1);
+                    MarkLockerOccupied(conn, tx, normalizedLocker1FClothes, 1);
+                    MarkLockerOccupied(conn, tx, normalizedLocker1FShoe, 1);
+                    MarkLockerOccupied(conn, tx, normalizedLocker2FClothes, 1);
+                    MarkLockerOccupied(conn, tx, normalizedLocker2FShoe, 1);
 
                     tx.Commit();
                 }
@@ -1316,7 +1326,8 @@ VALUES (@LockerID, @Location, @Type, 0, NULL)";
 
         private static void MarkLockerOccupied(SQLiteConnection conn, SQLiteTransaction tx, string lockerId, int occupied)
         {
-            if (string.IsNullOrWhiteSpace(lockerId))
+            string normalizedLockerId = NormalizeLockerId(lockerId);
+            if (string.IsNullOrWhiteSpace(normalizedLockerId))
             {
                 return;
             }
@@ -1326,9 +1337,14 @@ VALUES (@LockerID, @Location, @Type, 0, NULL)";
                 cmd.Transaction = tx;
                 cmd.CommandText = "UPDATE T_Lockers SET IsOccupied = @Occupied WHERE LockerID = @LockerID";
                 cmd.Parameters.AddWithValue("@Occupied", occupied);
-                cmd.Parameters.AddWithValue("@LockerID", lockerId);
+                cmd.Parameters.AddWithValue("@LockerID", normalizedLockerId);
                 cmd.ExecuteNonQuery();
             }
+        }
+
+        private static string NormalizeLockerId(string lockerId)
+        {
+            return string.IsNullOrWhiteSpace(lockerId) ? null : lockerId.Trim();
         }
 
         private static void EnsureColumnExists(string tableName, string columnName, string definition)
