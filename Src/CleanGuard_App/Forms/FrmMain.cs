@@ -266,7 +266,7 @@ namespace CleanGuard_App.Forms
                 }
 
                 printedCount++;
-                SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {target.EmpNo}-{target.Name}, 二维码内容={Printer.BuildQrPayload(target.EmpNo, target.Name, target.Locker2F)}");
+                SQLiteHelper.WriteSystemLog("Print", $"打印员工标签: {target.EmpNo}-{target.Name}, 二维码内容={Printer.BuildQrPayload(target.EmpNo, target.Name, target.Locker1FClothes, target.Locker1FShoe, target.Locker2FClothes, target.Locker2FShoe)}");
             }
 
             if (printedCount > 0)
@@ -285,12 +285,12 @@ namespace CleanGuard_App.Forms
                 {
                     if (mode == DialogResult.Yes)
                     {
-                        Printer.ShowLabelPreview(target.EmpNo, target.Name, target.Process, target.Locker2F);
+                        Printer.ShowLabelPreview(target.EmpNo, target.Name, target.Process, target.Locker1FClothes, target.Locker1FShoe, target.Locker2FClothes, target.Locker2FShoe);
                         printed = true;
                     }
                     else
                     {
-                        printed = Printer.PrintLabelDirect(this, target.EmpNo, target.Name, target.Process, target.Locker2F);
+                        printed = Printer.PrintLabelDirect(this, target.EmpNo, target.Name, target.Process, target.Locker1FClothes, target.Locker1FShoe, target.Locker2FClothes, target.Locker2FShoe);
                     }
 
                     if (!printed)
@@ -371,7 +371,10 @@ namespace CleanGuard_App.Forms
                     EmpNo = empNo,
                     Name = name,
                     Process = Convert.ToString(row.Cells["工序"].Value),
-                    Locker2F = Convert.ToString(row.Cells["2F衣柜"].Value)
+                    Locker1FClothes = Convert.ToString(row.Cells["1F衣柜"].Value),
+                    Locker1FShoe = Convert.ToString(row.Cells["1F鞋柜"].Value),
+                    Locker2FClothes = Convert.ToString(row.Cells["2F衣柜"].Value),
+                    Locker2FShoe = Convert.ToString(row.Cells["2F鞋柜"].Value)
                 });
             }
 
@@ -388,10 +391,57 @@ namespace CleanGuard_App.Forms
                     warnings.Add($"{target.EmpNo}-{target.Name} 未填写工序");
                 }
 
-                if (string.IsNullOrWhiteSpace(target.Locker2F))
+                if (string.IsNullOrWhiteSpace(target.Locker1FClothes))
+                {
+                    warnings.Add($"{target.EmpNo}-{target.Name} 未填写1F衣柜");
+                }
+                catch (Exception ex)
+                {
+                    string errorMessage = BuildFriendlyPrintError(ex);
+                    var result = MessageBox.Show(
+                        $"员工 {target.EmpNo}-{target.Name} 打印失败：\n{errorMessage}\n\n是：重试当前员工\n否：跳过当前员工\n取消：终止批量打印",
+                        "打印失败",
+                        MessageBoxButtons.YesNoCancel,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button1);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        continue;
+                    }
+
+                    if (result == DialogResult.No)
+                    {
+                        return true;
+                    }
+
+                    return false;
+                }
+            }
+        }
+
+                if (string.IsNullOrWhiteSpace(target.Locker1FShoe))
+                {
+                    warnings.Add($"{target.EmpNo}-{target.Name} 未填写1F鞋柜");
+                }
+
+                if (string.IsNullOrWhiteSpace(target.Locker2FClothes))
                 {
                     warnings.Add($"{target.EmpNo}-{target.Name} 未填写2F衣柜");
                 }
+
+                if (string.IsNullOrWhiteSpace(target.Locker2FShoe))
+                {
+                    warnings.Add($"{target.EmpNo}-{target.Name} 未填写2F鞋柜");
+                }
+
+                list.Add(new PrintTarget
+                {
+                    EmpNo = empNo,
+                    Name = name,
+                    Process = Convert.ToString(row.Cells["工序"].Value),
+                    Locker2F = Convert.ToString(row.Cells["2F衣柜"].Value)
+                });
             }
 
             if (warnings.Count == 0)
@@ -588,7 +638,10 @@ namespace CleanGuard_App.Forms
             public string EmpNo { get; set; }
             public string Name { get; set; }
             public string Process { get; set; }
-            public string Locker2F { get; set; }
+            public string Locker1FClothes { get; set; }
+            public string Locker1FShoe { get; set; }
+            public string Locker2FClothes { get; set; }
+            public string Locker2FShoe { get; set; }
         }
     }
 }
