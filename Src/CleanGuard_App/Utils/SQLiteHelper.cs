@@ -92,7 +92,6 @@ CREATE TABLE IF NOT EXISTS T_LockerSnapshot (
 
             SeedDefaultConfig();
 
-            SeedDefaultLockers();
             CaptureLockerSnapshot("Startup");
         }
 
@@ -487,6 +486,50 @@ GROUP BY Location, Type;";
             }
 
             return summary;
+        }
+
+
+        public static string GetSystemConfigValue(string configKey)
+        {
+            if (string.IsNullOrWhiteSpace(configKey))
+            {
+                return null;
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = "SELECT ConfigValue FROM T_SystemConfig WHERE ConfigKey = @Key";
+                cmd.Parameters.AddWithValue("@Key", configKey.Trim());
+                object value = cmd.ExecuteScalar();
+                if (value == null || value == DBNull.Value)
+                {
+                    return null;
+                }
+
+                return Convert.ToString(value);
+            }
+        }
+
+        public static void SaveSystemConfigValue(string configKey, string configValue)
+        {
+            if (string.IsNullOrWhiteSpace(configKey))
+            {
+                throw new ArgumentException("配置键不能为空。", "configKey");
+            }
+
+            using (var conn = new SQLiteConnection(ConnectionString))
+            using (var cmd = conn.CreateCommand())
+            {
+                conn.Open();
+                cmd.CommandText = @"INSERT INTO T_SystemConfig(ConfigKey, ConfigValue, UpdatedTime)
+VALUES(@Key, @Value, CURRENT_TIMESTAMP)
+ON CONFLICT(ConfigKey) DO UPDATE SET ConfigValue = excluded.ConfigValue, UpdatedTime = CURRENT_TIMESTAMP;";
+                cmd.Parameters.AddWithValue("@Key", configKey.Trim());
+                cmd.Parameters.AddWithValue("@Value", NormalizeNull(configValue));
+                cmd.ExecuteNonQuery();
+            }
         }
 
         public static Dictionary<string, int> GetItemCategoryLimits()
@@ -1224,16 +1267,29 @@ VALUES (@LockerID, @Location, @Type, 0)";
                 return;
             }
 
+            string normalizedLockerId = lockerId.Trim();
             using (var cmd = conn.CreateCommand())
             {
                 cmd.Transaction = tx;
                 cmd.CommandText = "SELECT Location, Type, IsOccupied FROM T_Lockers WHERE LockerID = @LockerID";
-                cmd.Parameters.AddWithValue("@LockerID", lockerId);
+                cmd.Parameters.AddWithValue("@LockerID", normalizedLockerId);
                 using (var reader = cmd.ExecuteReader())
                 {
                     if (!reader.Read())
                     {
-                        throw new InvalidOperationException($"{displayName} 柜号不存在: {lockerId}");
+                        reader.Close();
+                        using (var insertCmd = conn.CreateCommand())
+                        {
+                            insertCmd.Transaction = tx;
+                            insertCmd.CommandText = @"INSERT INTO T_Lockers (LockerID, Location, Type, IsOccupied, Remark)
+VALUES (@LockerID, @Location, @Type, 0, NULL)";
+                            insertCmd.Parameters.AddWithValue("@LockerID", normalizedLockerId);
+                            insertCmd.Parameters.AddWithValue("@Location", location);
+                            insertCmd.Parameters.AddWithValue("@Type", type);
+                            insertCmd.ExecuteNonQuery();
+                        }
+
+                        return;
                     }
 
                     var actualLocation = reader["Location"].ToString();
@@ -1242,17 +1298,17 @@ VALUES (@LockerID, @Location, @Type, 0)";
 
                     if (!string.Equals(actualLocation, location, StringComparison.OrdinalIgnoreCase))
                     {
-                        throw new InvalidOperationException($"{lockerId} 不属于 {location}。");
+                        throw new InvalidOperationException($"{normalizedLockerId} 不属于 {location}。");
                     }
 
                     if (!string.Equals(actualType, type, StringComparison.OrdinalIgnoreCase))
                     {
-                        throw new InvalidOperationException($"{lockerId} 是{actualType}，不能分配给{displayName}。");
+                        throw new InvalidOperationException($"{normalizedLockerId} 是{actualType}，不能分配给{displayName}。");
                     }
 
                     if (occupied == 1)
                     {
-                        throw new InvalidOperationException($"{lockerId} 已被占用，不能重复分配。");
+                        throw new InvalidOperationException($"{normalizedLockerId} 已被占用，不能重复分配。");
                     }
                 }
             }
