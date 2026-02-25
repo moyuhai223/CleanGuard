@@ -365,6 +365,30 @@ namespace CleanGuard_App.Forms
                 {
                     continue;
                 }
+                catch (Exception ex)
+                {
+                    string errorMessage = BuildFriendlyPrintError(ex);
+                    var result = MessageBox.Show(
+                        $"员工 {target.EmpNo}-{target.Name} 打印失败：\n{errorMessage}\n\n是：重试当前员工\n否：跳过当前员工\n取消：终止批量打印",
+                        "打印失败",
+                        MessageBoxButtons.YesNoCancel,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button1);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        continue;
+                    }
+
+                    if (result == DialogResult.No)
+                    {
+                        return true;
+                    }
+
+                    return false;
+                }
+            }
+        }
 
                 list.Add(new PrintTarget
                 {
@@ -395,30 +419,6 @@ namespace CleanGuard_App.Forms
                 {
                     warnings.Add($"{target.EmpNo}-{target.Name} 未填写1F衣柜");
                 }
-                catch (Exception ex)
-                {
-                    string errorMessage = BuildFriendlyPrintError(ex);
-                    var result = MessageBox.Show(
-                        $"员工 {target.EmpNo}-{target.Name} 打印失败：\n{errorMessage}\n\n是：重试当前员工\n否：跳过当前员工\n取消：终止批量打印",
-                        "打印失败",
-                        MessageBoxButtons.YesNoCancel,
-                        MessageBoxIcon.Warning,
-                        MessageBoxDefaultButton.Button1);
-
-                    if (result == DialogResult.Yes)
-                    {
-                        continue;
-                    }
-
-                    if (result == DialogResult.No)
-                    {
-                        return true;
-                    }
-
-                    return false;
-                }
-            }
-        }
 
                 if (string.IsNullOrWhiteSpace(target.Locker1FShoe))
                 {

@@ -181,7 +181,7 @@ namespace CleanGuard_App.Utils
                     g.DrawString(title, bodyFont, Brushes.Black, bounds.Left + settings.BorderPadding, bounds.Top + settings.HeaderTop);
 
                     int qrX = bounds.Right - settings.BorderPadding - settings.QrSize;
-                    int qrY = bounds.Top + settings.TitleTop;
+                    int qrY = bounds.Top + settings.QrTop;
                     if (qrBitmap != null)
                     {
                         g.DrawImage(qrBitmap, qrX, qrY, settings.QrSize, settings.QrSize);
@@ -193,23 +193,41 @@ namespace CleanGuard_App.Utils
                         g.DrawString("（未检测到 QRCoder，当前为文本占位）", bodyFont, Brushes.Gray, qrX, qrY + 55);
                     }
 
-                    int tagTop = bounds.Top + settings.LockerTagTop;
-                    int tagLeft = bounds.Left + settings.BorderPadding;
-                    var tag1 = new Rectangle(tagLeft, tagTop, settings.LockerTagWidth, settings.LockerTagHeight);
-                    var tag2 = new Rectangle(tagLeft + settings.LockerTagWidth + settings.LockerTagGapX, tagTop, settings.LockerTagWidth, settings.LockerTagHeight);
-                    var tag3 = new Rectangle(tagLeft, tagTop + settings.LockerTagHeight + settings.LockerTagGapY, settings.LockerTagWidth, settings.LockerTagHeight);
-                    var tag4 = new Rectangle(tagLeft + settings.LockerTagWidth + settings.LockerTagGapX, tagTop + settings.LockerTagHeight + settings.LockerTagGapY, settings.LockerTagWidth, settings.LockerTagHeight);
-
-                    DrawLockerTag(g, tag1, "1F衣柜", name, process, locker1FClothes, titleFont, bodyFont);
-                    DrawLockerTag(g, tag2, "1F鞋柜", name, process, locker1FShoe, titleFont, bodyFont);
-                    DrawLockerTag(g, tag3, "2F衣柜", name, process, locker2FClothes, titleFont, bodyFont);
-                    DrawLockerTag(g, tag4, "2F鞋柜", name, process, locker2FShoe, titleFont, bodyFont);
+                    var tags = BuildLockerTagRectangles(bounds, settings);
+                    DrawLockerTag(g, tags[0], "1F衣柜", name, process, locker1FClothes, titleFont, bodyFont);
+                    DrawLockerTag(g, tags[1], "1F鞋柜", name, process, locker1FShoe, titleFont, bodyFont);
+                    DrawLockerTag(g, tags[2], "2F衣柜", name, process, locker2FClothes, titleFont, bodyFont);
+                    DrawLockerTag(g, tags[3], "2F鞋柜", name, process, locker2FShoe, titleFont, bodyFont);
                 }
 
                 args.HasMorePages = false;
             };
 
             return printDoc;
+        }
+
+        private static Rectangle[] BuildLockerTagRectangles(Rectangle bounds, LabelPrintLayoutSettings settings)
+        {
+            int gridWidth = settings.LockerTagWidth * 2 + settings.LockerTagGapX;
+            int gridHeight = settings.LockerTagHeight * 2 + settings.LockerTagGapY;
+
+            int minTagTop = bounds.Top + settings.LockerTagTop;
+            int preferredTop = bounds.Top + Math.Max(bounds.Height / 2, settings.LockerTagTop);
+            int maxTagTop = bounds.Bottom - settings.BorderPadding - gridHeight;
+            int tagTop = Math.Max(minTagTop, Math.Min(preferredTop, maxTagTop));
+
+            int centeredLeft = bounds.Left + (bounds.Width - gridWidth) / 2;
+            int minLeft = bounds.Left + settings.BorderPadding;
+            int maxLeft = bounds.Right - settings.BorderPadding - gridWidth;
+            int tagLeft = Math.Max(minLeft, Math.Min(centeredLeft, maxLeft));
+
+            return new[]
+            {
+                new Rectangle(tagLeft, tagTop, settings.LockerTagWidth, settings.LockerTagHeight),
+                new Rectangle(tagLeft + settings.LockerTagWidth + settings.LockerTagGapX, tagTop, settings.LockerTagWidth, settings.LockerTagHeight),
+                new Rectangle(tagLeft, tagTop + settings.LockerTagHeight + settings.LockerTagGapY, settings.LockerTagWidth, settings.LockerTagHeight),
+                new Rectangle(tagLeft + settings.LockerTagWidth + settings.LockerTagGapX, tagTop + settings.LockerTagHeight + settings.LockerTagGapY, settings.LockerTagWidth, settings.LockerTagHeight)
+            };
         }
 
         private static void ApplySavedPreset(PrintDocument printDoc)
@@ -356,7 +374,8 @@ namespace CleanGuard_App.Utils
         private static void DrawLockerTag(Graphics g, Rectangle rect, string title, string name, string process, string lockerNo, Font titleFont, Font bodyFont)
         {
             g.DrawRectangle(Pens.Black, rect);
-            g.DrawString(string.Format("{0} / {1}", name, process), titleFont, Brushes.Black, rect.Left + 6, rect.Top + 6);
+            string processText = string.IsNullOrWhiteSpace(process) ? "未填工序" : process;
+            g.DrawString(string.Format("{0} / {1}", name, processText), titleFont, Brushes.Black, rect.Left + 6, rect.Top + 6);
             g.DrawString(title + "：" + (string.IsNullOrWhiteSpace(lockerNo) ? "(空)" : lockerNo), bodyFont, Brushes.Black, rect.Left + 6, rect.Top + rect.Height - 28);
         }
 
