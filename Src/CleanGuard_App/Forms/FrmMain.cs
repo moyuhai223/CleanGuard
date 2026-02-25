@@ -365,44 +365,25 @@ namespace CleanGuard_App.Forms
                 {
                     continue;
                 }
-                catch (Exception ex)
-                {
-                    string errorMessage = BuildFriendlyPrintError(ex);
-                    var result = MessageBox.Show(
-                        $"员工 {target.EmpNo}-{target.Name} 打印失败：\n{errorMessage}\n\n是：重试当前员工\n否：跳过当前员工\n取消：终止批量打印",
-                        "打印失败",
-                        MessageBoxButtons.YesNoCancel,
-                        MessageBoxIcon.Warning,
-                        MessageBoxDefaultButton.Button1);
 
-                    if (result == DialogResult.Yes)
-                    {
-                        continue;
-                    }
-
-                    if (result == DialogResult.No)
-                    {
-                        return true;
-                    }
-
-                    return false;
-                }
-            }
-        }
-
-                list.Add(new PrintTarget
-                {
-                    EmpNo = empNo,
-                    Name = name,
-                    Process = Convert.ToString(row.Cells["工序"].Value),
-                    Locker1FClothes = Convert.ToString(row.Cells["1F衣柜"].Value),
-                    Locker1FShoe = Convert.ToString(row.Cells["1F鞋柜"].Value),
-                    Locker2FClothes = Convert.ToString(row.Cells["2F衣柜"].Value),
-                    Locker2FShoe = Convert.ToString(row.Cells["2F鞋柜"].Value)
-                });
+                list.Add(CreatePrintTarget(row, empNo, name));
             }
 
             return list;
+        }
+
+        private static PrintTarget CreatePrintTarget(DataGridViewRow row, string empNo, string name)
+        {
+            return new PrintTarget
+            {
+                EmpNo = empNo,
+                Name = name,
+                Process = Convert.ToString(row.Cells["工序"].Value),
+                Locker1FClothes = Convert.ToString(row.Cells["1F衣柜"].Value),
+                Locker1FShoe = Convert.ToString(row.Cells["1F鞋柜"].Value),
+                Locker2FClothes = Convert.ToString(row.Cells["2F衣柜"].Value),
+                Locker2FShoe = Convert.ToString(row.Cells["2F鞋柜"].Value)
+            };
         }
 
         private bool ConfirmPrintWarnings(List<PrintTarget> targets)
@@ -434,14 +415,6 @@ namespace CleanGuard_App.Forms
                 {
                     warnings.Add($"{target.EmpNo}-{target.Name} 未填写2F鞋柜");
                 }
-
-                list.Add(new PrintTarget
-                {
-                    EmpNo = empNo,
-                    Name = name,
-                    Process = Convert.ToString(row.Cells["工序"].Value),
-                    Locker2F = Convert.ToString(row.Cells["2F衣柜"].Value)
-                });
             }
 
             if (warnings.Count == 0)
