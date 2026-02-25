@@ -15,7 +15,7 @@ namespace CleanGuard_App.Utils
         };
         public static readonly string[] LockerTemplateHeaders =
         {
-            "柜号", "楼层", "类型", "异常备注"
+            "1F衣柜", "1F鞋柜", "2F衣柜", "2F鞋柜"
         };
 
         public static void ExportTemplate(string filePath)
@@ -81,8 +81,8 @@ namespace CleanGuard_App.Utils
 
             var sb = new StringBuilder();
             sb.AppendLine(string.Join(",", LockerTemplateHeaders));
-            sb.AppendLine("1F-C-01,1F,衣柜,");
-            sb.AppendLine("1F-S-01,1F,鞋柜,");
+            sb.AppendLine("1F-C-01,1F-S-01,2F-C-01,2F-S-01");
+            sb.AppendLine("1F-C-02,1F-S-02,2F-C-02,2F-S-02");
             File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
         }
 
@@ -136,7 +136,16 @@ namespace CleanGuard_App.Utils
             }
 
             var rows = new List<LockerImportRow>();
+            var keys = new Dictionary<string, LockerImportRow>(StringComparer.OrdinalIgnoreCase);
             string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
+            if (lines.Length == 0)
+            {
+                result.Errors.Add("文件内容为空。");
+                return result;
+            }
+
+            string[] header = SplitCsvLine(lines[0]);
+            var columnMap = BuildLockerColumnMap(header, result);
             for (int i = 1; i < lines.Length; i++)
             {
                 string line = (lines[i] ?? string.Empty).Trim();
@@ -145,7 +154,7 @@ namespace CleanGuard_App.Utils
                     continue;
                 }
 
-                TryParseLockerRow(SplitCsvLine(line), i + 1, result, rows);
+                ParseLockerColumns(SplitCsvLine(line), i + 1, columnMap, result, rows, keys);
             }
 
             FinalizeLockerImport(filePath, result, rows);
@@ -162,6 +171,7 @@ namespace CleanGuard_App.Utils
             }
 
             var rows = new List<LockerImportRow>();
+            var keys = new Dictionary<string, LockerImportRow>(StringComparer.OrdinalIgnoreCase);
             using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 var workbook = new XSSFWorkbook(fs);
@@ -172,6 +182,8 @@ namespace CleanGuard_App.Utils
                     return result;
                 }
 
+                IRow headerRow = sheet.GetRow(0);
+                var columnMap = BuildLockerColumnMap(ReadRowCells(headerRow), result);
                 for (int r = 1; r <= sheet.LastRowNum; r++)
                 {
                     IRow row = sheet.GetRow(r);
@@ -186,7 +198,7 @@ namespace CleanGuard_App.Utils
                         continue;
                     }
 
-                    TryParseLockerRow(cells, r + 1, result, rows);
+                    ParseLockerColumns(cells, r + 1, columnMap, result, rows, keys);
                 }
             }
 
@@ -201,8 +213,8 @@ namespace CleanGuard_App.Utils
             {
                 ISheet sheet = workbook.CreateSheet("柜位导入模板");
                 WriteCellsToRow(sheet.CreateRow(0), LockerTemplateHeaders);
-                WriteCellsToRow(sheet.CreateRow(1), new[] { "1F-C-01", "1F", "衣柜", string.Empty });
-                WriteCellsToRow(sheet.CreateRow(2), new[] { "1F-S-01", "1F", "鞋柜", string.Empty });
+                WriteCellsToRow(sheet.CreateRow(1), new[] { "1F-C-01", "1F-S-01", "2F-C-01", "2F-S-01" });
+                WriteCellsToRow(sheet.CreateRow(2), new[] { "1F-C-02", "1F-S-02", "2F-C-02", "2F-S-02" });
                 workbook.Write(fs);
             }
         }
@@ -443,65 +455,85 @@ namespace CleanGuard_App.Utils
             }
         }
 
-        private static void TryParseLockerRow(string[] cells, int rowNumber, ProcessImportResult result, List<LockerImportRow> rows)
+        private static Dictionary<int, LockerColumnMeta> BuildLockerColumnMap(string[] headerCells, ProcessImportResult result)
         {
-            int offset = 0;
-            string secondCell = SafeCell(cells, 1);
-            if (secondCell == "1F" || secondCell == "2F")
+            var map = new Dictionary<int, LockerColumnMeta>();
+            if (headerCells == null || headerCells.Length == 0)
             {
-                offset = 0;
-            }
-            else if (SafeCell(cells, 2) == "1F" || SafeCell(cells, 2) == "2F")
-            {
-                // 兼容旧模板：第1列为原始编码
-                offset = 1;
+                map[0] = new LockerColumnMeta { Location = "1F", Type = "衣柜" };
+                map[1] = new LockerColumnMeta { Location = "1F", Type = "鞋柜" };
+                map[2] = new LockerColumnMeta { Location = "2F", Type = "衣柜" };
+                map[3] = new LockerColumnMeta { Location = "2F", Type = "鞋柜" };
+                result.Errors.Add("未检测到柜位表头，已按默认顺序解析：1F衣柜/1F鞋柜/2F衣柜/2F鞋柜。");
+                return map;
             }
 
-            string lockerId = SafeCell(cells, offset + 0);
-            string location = SafeCell(cells, offset + 1);
-            string type = SafeCell(cells, offset + 2);
-            string remark = SafeCell(cells, offset + 3);
-
-            if (string.IsNullOrWhiteSpace(lockerId) || string.IsNullOrWhiteSpace(location) || string.IsNullOrWhiteSpace(type))
+            for (int i = 0; i < headerCells.Length; i++)
             {
-                result.FailedCount++;
+                var meta = ParseLockerHeader(headerCells[i]);
+                if (meta != null)
+                {
+                    map[i] = meta;
+                }
+            }
+
+            if (map.Count == 0)
+            {
+                result.Errors.Add("未识别到柜位列，请使用表头：1F衣柜、1F鞋柜、2F衣柜、2F鞋柜。");
+            }
+
+            return map;
+        }
+
+        private static LockerColumnMeta ParseLockerHeader(string header)
+        {
+            string value = (header ?? string.Empty).Trim().Replace(" ", string.Empty).Replace("二F", "2F").ToUpperInvariant();
+            if (value == "1F衣柜") return new LockerColumnMeta { Location = "1F", Type = "衣柜" };
+            if (value == "1F鞋柜") return new LockerColumnMeta { Location = "1F", Type = "鞋柜" };
+            if (value == "2F衣柜") return new LockerColumnMeta { Location = "2F", Type = "衣柜" };
+            if (value == "2F鞋柜") return new LockerColumnMeta { Location = "2F", Type = "鞋柜" };
+            return null;
+        }
+
+        private static void ParseLockerColumns(string[] cells, int rowNumber, Dictionary<int, LockerColumnMeta> columnMap, ProcessImportResult result, List<LockerImportRow> rows, Dictionary<string, LockerImportRow> keys)
+        {
+            foreach (var pair in columnMap)
+            {
+                string lockerId = SafeCell(cells, pair.Key);
                 if (string.IsNullOrWhiteSpace(lockerId))
                 {
-                    result.Errors.Add(BuildColumnError(rowNumber, offset + 1, "CG-LOCKER-001", "柜号不能为空。", "请填写柜号，例如 1F-C-01。"));
+                    continue;
                 }
-                else if (string.IsNullOrWhiteSpace(location))
+
+                string key = lockerId.Trim();
+                LockerImportRow existing;
+                if (keys.TryGetValue(key, out existing))
                 {
-                    result.Errors.Add(BuildColumnError(rowNumber, offset + 2, "CG-LOCKER-002", "楼层不能为空。", "请填写 1F 或 2F。"));
+                    if (!string.Equals(existing.Location, pair.Value.Location, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(existing.Type, pair.Value.Type, StringComparison.OrdinalIgnoreCase))
+                    {
+                        result.FailedCount++;
+                        result.Errors.Add(BuildColumnError(rowNumber, pair.Key + 1, "CG-LOCKER-006", string.Format("柜号 {0} 在不同列重复，类型冲突。", key), "请确保同一柜号只出现在一个列中。"));
+                    }
+                    else
+                    {
+                        result.SkippedCount++;
+                    }
+
+                    continue;
                 }
-                else
+
+                var row = new LockerImportRow
                 {
-                    result.Errors.Add(BuildColumnError(rowNumber, offset + 3, "CG-LOCKER-003", "类型不能为空。", "请填写 衣柜 或 鞋柜。"));
-                }
-                return;
+                    LockerID = key,
+                    Location = pair.Value.Location,
+                    Type = pair.Value.Type,
+                    Remark = string.Empty
+                };
+                rows.Add(row);
+                keys[key] = row;
+                result.SuccessCount++;
             }
-
-            if (location != "1F" && location != "2F")
-            {
-                result.FailedCount++;
-                result.Errors.Add(BuildColumnError(rowNumber, offset + 2, "CG-LOCKER-004", "楼层仅支持 1F 或 2F。", "将楼层修正为 1F 或 2F。"));
-                return;
-            }
-
-            if (type != "衣柜" && type != "鞋柜")
-            {
-                result.FailedCount++;
-                result.Errors.Add(BuildColumnError(rowNumber, offset + 3, "CG-LOCKER-005", "类型仅支持 衣柜 或 鞋柜。", "将类型修正为 衣柜 或 鞋柜。"));
-                return;
-            }
-
-            rows.Add(new LockerImportRow
-            {
-                LockerID = lockerId,
-                Location = location,
-                Type = type,
-                Remark = remark
-            });
-            result.SuccessCount++;
         }
 
         private static void FinalizeLockerImport(string filePath, ProcessImportResult result, List<LockerImportRow> rows)
@@ -651,6 +683,13 @@ namespace CleanGuard_App.Utils
             values.Add(sb.ToString().Trim());
             return values.ToArray();
         }
+    }
+
+
+    internal class LockerColumnMeta
+    {
+        public string Location { get; set; }
+        public string Type { get; set; }
     }
 
     public class ImportResult
