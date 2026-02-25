@@ -168,13 +168,20 @@ namespace CleanGuard_App.Forms
 
         private void LoadEmployeeData(string keyword = "")
         {
-            DataTable table = SQLiteHelper.QueryEmployees(keyword);
-            _grid.DataSource = table;
-
-            if (_grid.Columns.Count > 0)
+            try
             {
-                _grid.Columns[0].Frozen = true;
-                _grid.Columns[0].DefaultCellStyle.BackColor = Color.AliceBlue;
+                DataTable table = SQLiteHelper.QueryEmployees(keyword);
+                _grid.DataSource = table;
+
+                if (_grid.Columns.Count > 0)
+                {
+                    _grid.Columns[0].Frozen = true;
+                    _grid.Columns[0].DefaultCellStyle.BackColor = Color.AliceBlue;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("加载员工数据失败：" + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

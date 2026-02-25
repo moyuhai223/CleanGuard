@@ -1,4 +1,5 @@
 using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -15,12 +16,52 @@ namespace CleanGuard_App
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            SQLiteHelper.InitializeDatabase();
+            Application.ThreadException += (sender, args) =>
+            {
+                MessageBox.Show(
+                    "程序运行发生异常：\n" + args.Exception.Message + "\n\n" + args.Exception.StackTrace,
+                    "CleanGuard 异常",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            };
+            AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
+            {
+                var ex = args.ExceptionObject as Exception;
+                MessageBox.Show(
+                    "程序发生严重异常：\n" + (ex != null ? ex.Message + "\n\n" + ex.StackTrace : args.ExceptionObject.ToString()),
+                    "CleanGuard 异常",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            };
 
-            var mainForm = new FrmMain();
-            mainForm.FormClosing += (sender, args) => BackupDatabase();
+            try
+            {
+                SQLiteHelper.InitializeDatabase();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "数据库初始化失败，程序无法启动。\n\n" + ex.Message + "\n\n" + ex.StackTrace,
+                    "CleanGuard 启动失败",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
 
-            Application.Run(mainForm);
+            try
+            {
+                var mainForm = new FrmMain();
+                mainForm.FormClosing += (sender, args) => BackupDatabase();
+                Application.Run(mainForm);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "程序启动失败：\n" + ex.Message + "\n\n" + ex.StackTrace,
+                    "CleanGuard 启动失败",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
 
         private static void BackupDatabase()
