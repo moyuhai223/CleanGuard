@@ -191,13 +191,12 @@ namespace CleanGuard_App.Forms
 
         private void OpenEditorForSelected()
         {
-            if (_grid.SelectedRows.Count == 0)
+            string empNo;
+            if (!TryGetSingleSelectedEmpNo(out empNo))
             {
-                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            string empNo = Convert.ToString(_grid.SelectedRows[0].Cells["工号"].Value);
             if (string.IsNullOrWhiteSpace(empNo))
             {
                 MessageBox.Show("无法识别当前行工号。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -428,13 +427,12 @@ namespace CleanGuard_App.Forms
 
         private void RestoreSelectedEmployee()
         {
-            if (_grid.SelectedRows.Count == 0)
+            string empNo;
+            if (!TryGetSingleSelectedEmpNo(out empNo))
             {
-                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            string empNo = Convert.ToString(_grid.SelectedRows[0].Cells["工号"].Value);
             var info = SQLiteHelper.GetEmployeeLockerInfo(empNo);
             if (info == null)
             {
@@ -468,13 +466,12 @@ namespace CleanGuard_App.Forms
 
         private void DeleteSelectedEmployee()
         {
-            if (_grid.SelectedRows.Count == 0)
+            string empNo;
+            if (!TryGetSingleSelectedEmpNo(out empNo))
             {
-                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            string empNo = Convert.ToString(_grid.SelectedRows[0].Cells["工号"].Value);
             var info = SQLiteHelper.GetEmployeeLockerInfo(empNo);
             if (info == null)
             {
@@ -510,13 +507,12 @@ namespace CleanGuard_App.Forms
 
         private void ResignSelectedEmployee()
         {
-            if (_grid.SelectedRows.Count == 0)
+            string empNo;
+            if (!TryGetSingleSelectedEmpNo(out empNo))
             {
-                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            string empNo = Convert.ToString(_grid.SelectedRows[0].Cells["工号"].Value);
             var info = SQLiteHelper.GetEmployeeLockerInfo(empNo);
             if (info == null)
             {
@@ -551,6 +547,32 @@ namespace CleanGuard_App.Forms
         private static string DisplayLocker(string locker)
         {
             return string.IsNullOrWhiteSpace(locker) ? "(空)" : locker;
+        }
+
+        private bool TryGetSingleSelectedEmpNo(out string empNo)
+        {
+            empNo = null;
+
+            if (_grid.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("请先选择一名员工。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return false;
+            }
+
+            if (_grid.SelectedRows.Count > 1)
+            {
+                MessageBox.Show("当前操作仅支持单人处理，请只选择一名员工后重试。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return false;
+            }
+
+            empNo = Convert.ToString(_grid.SelectedRows[0].Cells["工号"].Value);
+            if (string.IsNullOrWhiteSpace(empNo))
+            {
+                MessageBox.Show("无法识别当前行工号。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+
+            return true;
         }
 
         private void OpenLockerChart()
